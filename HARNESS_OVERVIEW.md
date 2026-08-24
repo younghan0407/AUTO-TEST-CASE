@@ -114,7 +114,7 @@ testcase-auto/
 | 스킬 | 유형 | 역할 | 번들 스크립트 |
 |------|------|------|--------------|
 | **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, 챕터 루프 제어, 사용자 게이트 관리 | — |
-| **양식 사양** (`.claude/formats/team-viola.md`) | 데이터 | 컬럼 구조(A~W 23)·enum·문체·표기 컨벤션·권위 규칙. 331행 전수 실측 결과를 커밋해 재사용 | — |
+| **양식 사양** (`.claude/formats/team-viola.md`, `team-trombone.md`) | 데이터 | 제품별 컬럼 구조(A~W 23)·enum·구분×우선순위 결합·문체·표기 컨벤션·권위 규칙. VIOLA 331행 / TROMBONE 3,953행 전수 실측 결과를 커밋해 재사용. 대상 시트 솔루션 컬럼으로 자동 선택 | — |
 | **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차 (전체 / 변경분 한정) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
 | **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분류별 개수, 우선순위 정책 | — |
