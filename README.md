@@ -55,6 +55,7 @@ python3 verify_setup.py
 |------|------|
 | [SETUP.md](SETUP.md) | **팀원 세팅 가이드 + 검증 절차** — 여기서 시작 |
 | [docs/PROMPTS.md](docs/PROMPTS.md) | **프롬프트 가이드** — 무엇을 어떻게 요청하면 품질이 올라가는지 |
+| [docs/baselines/](docs/baselines/) | **준수도 기준선** — 하네스 출력을 팀 양식 사양으로 채점한 결과 (회귀 판단 기준) |
 | [.claude/formats/team-viola.md](.claude/formats/team-viola.md) | **VIOLA 양식 사양** — 2탭 331행 전수 실측 |
 | [.claude/formats/team-trombone.md](.claude/formats/team-trombone.md) | **TROMBONE 양식 사양** — 8탭 3,953행 전수 실측 |
 | [CLAUDE.md](CLAUDE.md) | 하네스 트리거 규칙 + **변경 이력** (규칙을 왜 그렇게 정했는지) |
