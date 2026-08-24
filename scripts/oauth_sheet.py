@@ -1,0 +1,1 @@
+../.claude/skills/sheet-operator/scripts/oauth_sheet.py

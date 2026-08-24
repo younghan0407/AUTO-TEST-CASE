@@ -1,0 +1,1 @@
+../.claude/skills/sheet-operator/scripts/sheets_api.py

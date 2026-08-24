@@ -1,0 +1,1 @@
+../.claude/skills/prd-analyzer/scripts/pdf_to_images.py

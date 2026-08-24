@@ -1,0 +1,1 @@
+../.claude/skills/prd-analyzer/scripts/detect_red_regions.py

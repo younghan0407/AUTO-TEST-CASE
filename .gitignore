@@ -1,0 +1,33 @@
+# ─── 인증 정보 — 절대 커밋 금지 ────────────────────────────────
+.credentials/
+*.json
+!*.json.example
+.env
+
+# 개인 환경 설정 (Figma 토큰·로컬 권한 포함)
+.claude/settings.json
+.claude/settings.local.json
+
+# ─── 사내 자료 (기획서 원본·캡처) ──────────────────────────────
+PDF/
+*.pdf
+img/
+scratchpad_crops/
+
+# ─── 작업 산출물 (실행하면 각자 생성됨) ────────────────────────
+_workspace/
+_workspace_*/
+
+# ─── 외부 프로젝트 (Apache-2.0, revfactory/harness) ───────────
+# 남의 저장소를 재배포하지 않는다. 필요하면 각자 플러그인으로 설치:
+#   /plugin marketplace add revfactory/harness
+/harness/
+.claude/skills/harness/
+
+# ─── OS·파이썬 ────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/

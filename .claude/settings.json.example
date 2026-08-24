@@ -1,0 +1,7 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "FIGMA_ACCESS_TOKEN": "<본인_Figma_Personal_Access_Token>",
+    "GOOGLE_SERVICE_ACCOUNT_EMAIL": "testcase-auto-agent@testcase-auto.iam.gserviceaccount.com"
+  }
+}

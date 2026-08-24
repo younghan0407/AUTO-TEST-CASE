@@ -1,0 +1,1 @@
+../.claude/skills/prd-analyzer/scripts/check_image_quality.py
