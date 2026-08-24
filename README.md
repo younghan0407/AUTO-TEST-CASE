@@ -45,12 +45,14 @@ python3 verify_setup.py
 ```
 
 세팅이 끝나면 이 폴더에서 Claude Code를 실행하고 기획서·시트 URL과 함께 "테스트 케이스 만들어줘"라고 요청하면 됩니다.
+요청 문구는 [docs/PROMPTS.md](docs/PROMPTS.md) 를 참고하세요 — 품질이 갈리는 지점이 정리되어 있습니다.
 
 ## 문서
 
 | 문서 | 용도 |
 |------|------|
 | [SETUP.md](SETUP.md) | **팀원 세팅 가이드 + 검증 절차** — 여기서 시작 |
+| [docs/PROMPTS.md](docs/PROMPTS.md) | **프롬프트 가이드** — 무엇을 어떻게 요청하면 품질이 올라가는지 |
 | [.claude/formats/team-viola.md](.claude/formats/team-viola.md) | **팀 양식 사양** — 컬럼·enum·문체·표기 컨벤션의 기준 |
 | [CLAUDE.md](CLAUDE.md) | 하네스 트리거 규칙 + **변경 이력** (규칙을 왜 그렇게 정했는지) |
 | [HARNESS_OVERVIEW.md](HARNESS_OVERVIEW.md) | 전체 구성도 — 어떤 파일이 무엇을 담당하는지 |
