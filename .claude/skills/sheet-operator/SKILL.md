@@ -31,13 +31,29 @@ Google Sheets API v4를 서비스 계정 인증으로 호출하여 시트 읽기
    python scripts/sheets_api.py metadata <SHEET_URL>
    ```
 
-2. **헤더 행 + 샘플 5~10개 행 읽기** — 양식 추출 시.
+2. **드리프트 검증 읽기 (기본 — 매 실행)** — 양식 사양(`.claude/formats/`)이 있을 때 쓰는 최소 읽기.
+   전수 스캔하지 않고 **2회 호출**로 끝낸다.
 
    ```bash
-   python scripts/sheets_api.py read <SHEET_URL> 'Sheet1!A1:Z20'
+   # ① 헤더 1행 — 사양의 컬럼 구조와 대조
+   python scripts/sheets_api.py read <SHEET_URL> "'탭이름'!A1:AZ1"
+
+   # ② 마지막 20~50행 — 마지막 TC ID 추출 + 사양 외 enum 등장 여부
+   python scripts/sheets_api.py read <SHEET_URL> "'탭이름'!A180:W228"
    ```
 
-3. **여러 탭을 점검** — 메타데이터로 받은 모든 탭을 한 번씩 샘플링.
+   범위의 끝 행 번호는 1번 `metadata` 의 실제 데이터 행 수로 정한다.
+   **헤더는 `AZ`까지 넓게 읽는다** — 사양보다 컬럼이 늘어난 경우를 잡기 위한 것이다.
+   `A1:W1`로 좁혀 읽으면 X열 이후에 추가된 컬럼을 놓친다.
+
+3. **전수 스캔 읽기 (사양 갱신 시에만)** — `"양식 사양 갱신해줘"` 요청 시.
+   모든 탭의 전 행을 읽는다. 앞·중간·뒤를 고르게 봐야 enum을 놓치지 않는다.
+
+   ```bash
+   python scripts/sheets_api.py read <SHEET_URL> "'탭이름'!A1:Z1444"
+   ```
+
+4. **여러 탭을 점검** — 메타데이터로 받은 모든 탭을 한 번씩 샘플링 (전수 스캔 시).
 
 ### 쓰기 (testcase-writer가 사용)
 
@@ -56,7 +72,22 @@ Google Sheets API v4를 서비스 계정 인증으로 호출하여 시트 읽기
    python scripts/sheets_api.py write <SHEET_URL> 'Sheet1!V2:V43' '[["..."],["..."]]'
    ```
 
-4. **새 탭 사용 시** — `add_tab`으로 먼저 탭 생성 후 헤더 → 케이스 순으로 작성.
+4. **새 탭·빈 시트에 쓸 때** — 헤더가 없으면 **양식 사양의 헤더 원문**으로 만들어 준다.
+   사양이 있으면 참고 시트 없이도 시작할 수 있다.
+
+   ```bash
+   # ① 탭 생성 (기존 탭에 쓰는 경우 생략)
+   python scripts/sheets_api.py add_tab <SHEET_URL> "01_챕터명"
+
+   # ② 헤더 1행 — .claude/formats/{사양}.md 의 "헤더 원문"을 그대로 사용
+   python scripts/sheets_api.py write <SHEET_URL> "'01_챕터명'!A1:W1" '[["No","솔루션","기능테스트 ID", ...]]'
+
+   # ③ 2행부터 케이스 batch append
+   python scripts/sheets_api.py append <SHEET_URL> "'01_챕터명'!A:W" '[[...],[...]]'
+   ```
+
+   - 헤더 컬럼명은 **사양 원문 그대로** 쓴다. 임의로 다듬으면 이후 드리프트 검증이 불일치로 잡는다.
+   - 빈 기본 탭(`시트1` 등)은 API로 삭제할 수 없다 → 사람이 수동 정리해야 함을 보고한다.
 
 ## API 응답 핵심 정보
 

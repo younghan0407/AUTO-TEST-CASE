@@ -114,6 +114,7 @@ testcase-auto/
 | 스킬 | 유형 | 역할 | 번들 스크립트 |
 |------|------|------|--------------|
 | **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, 챕터 루프 제어, 사용자 게이트 관리 | — |
+| **양식 사양** (`.claude/formats/team-viola.md`) | 데이터 | 컬럼 구조(A~W 23)·enum·문체·표기 컨벤션·권위 규칙. 331행 전수 실측 결과를 커밋해 재사용 | — |
 | **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차 (전체 / 변경분 한정) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
 | **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분류별 개수, 우선순위 정책 | — |
@@ -149,7 +150,7 @@ testcase-auto/
 ### Phase 0 — 컨텍스트 확인
 
 1. **환경변수 검증** — `FIGMA_ACCESS_TOKEN`, `GOOGLE_APPLICATION_CREDENTIALS`. 누락 시 안내 후 중단
-2. **입력 수집** — 기획서(Figma URL / PDF 경로 / **이미지 파일·디렉터리 경로**) / 참고 시트 URL / 대상 시트 URL / (선택) 대상 탭 / (선택) 분석 범위 / 생성 모드
+2. **입력 수집** — 기획서(Figma URL / PDF 경로 / **이미지 파일·디렉터리 경로**) / **대상 시트 URL** (참고 시트는 사양 갱신 시에만) / (선택) 대상 탭 / (선택) 분석 범위 / 생성 모드
    - 이미지 입력이면 변환 단계 없이 바로 이미지 분석 경로로 진행한다 (PDF를 요구하지 않는다)
 3. **기존 산출물 확인 → 실행 모드 결정**
 
