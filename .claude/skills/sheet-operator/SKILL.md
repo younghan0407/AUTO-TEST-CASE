@@ -44,7 +44,7 @@ Google Sheets API v4를 서비스 계정 인증으로 호출하여 시트 읽기
 
    범위의 끝 행 번호는 1번 `metadata` 의 실제 데이터 행 수로 정한다.
    **헤더는 `AZ`까지 넓게 읽는다** — 사양보다 컬럼이 늘어난 경우를 잡기 위한 것이다.
-   `A1:W1`로 좁혀 읽으면 X열 이후에 추가된 컬럼을 놓친다.
+   좁은 범위로 읽으면 뒤에 추가된 컬럼을 놓친다. **VIOLA는 `관리대상` 포함 24컬럼(A~X)이고 TROMBONE은 23컬럼(A~W)** 이므로, 헤더는 넉넉히(`A1:Z1`) 읽어 실제 컬럼 수를 확인한다.
 
 3. **전수 스캔 읽기 (사양 갱신 시에만)** — `"양식 사양 갱신해줘"` 요청 시.
    모든 탭의 전 행을 읽는다. 앞·중간·뒤를 고르게 봐야 enum을 놓치지 않는다.
@@ -80,7 +80,8 @@ Google Sheets API v4를 서비스 계정 인증으로 호출하여 시트 읽기
    python scripts/sheets_api.py add_tab <SHEET_URL> "01_챕터명"
 
    # ② 헤더 1행 — .claude/formats/{사양}.md 의 "헤더 원문"을 그대로 사용
-   python scripts/sheets_api.py write <SHEET_URL> "'01_챕터명'!A1:W1" '[["No","솔루션","기능테스트 ID", ...]]'
+   # 범위는 사양의 컬럼 수에 맞춘다 — VIOLA 24컬럼이면 A1:X1, TROMBONE 23컬럼이면 A1:W1
+   python scripts/sheets_api.py write <SHEET_URL> "'01_챕터명'!A1:X1" '[["No","솔루션","관리대상","기능테스트 ID", ...]]'
 
    # ③ 2행부터 케이스 batch append
    python scripts/sheets_api.py append <SHEET_URL> "'01_챕터명'!A:W" '[[...],[...]]'

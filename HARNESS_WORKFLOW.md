@@ -96,7 +96,7 @@ python scripts/pdf_to_images.py <pdf> --crop-desc --dpi=200 --output-dir=_worksp
 
 **1-D. sheet-analyst (1-A와 병렬)** — 참고 시트를 역공학해 `02_sheet_format.md`를 만든다. 세 가지가 핵심:
 - enum은 **시트 전체에서 distinct로** 수집한다 (앞 50행만 보면 P4를 놓친다 — 실제 발생했던 누락)
-- 솔루션 분리 패턴 인식 (예: `VIOLA_CICD` 같은 모듈별 값)
+- 솔루션 컬럼 실측 = 사양 선택 판정 기준 (VIOLA는 `VIOLA` 단일값 — `VIOLA_CICD` 접미사 분리는 실측 0건이므로 발견 시 사양 외 enum(Major)으로 보고). 관리대상 구분(`K8s`/`CI·CD`)은 `1 Depth`·사전조건·비고에 나타난다
 - **검증 단위 판정** (atomic / scenario) — Phase 0에서 모드가 명시되지 않았으면 이 판정을 사용자에게 보고하고 확인받는다
 
 ### Phase 2~4 — 챕터 루프
