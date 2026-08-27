@@ -1,6 +1,8 @@
-"""기획서의 변경 표시(빨강) 영역을 검출하여 크롭 이미지로 저장.
+"""기획서의 변경 표시(빨강·파랑) 영역을 검출하여 크롭 이미지로 저장.
 
-개정판 기획서는 변경된 부분만 빨간색으로 표시하는 것이 팀 컨벤션이다.
+개정판 기획서는 변경된 부분만 색으로 표시하는 것이 팀 컨벤션이다.
+표시 색은 기획서마다 다르다 — 빨강만 쓰는 판본, 빨강+파랑을 함께 쓰는 판본이 있다.
+`--color` 로 검출 색을 지정한다 (기본 `red`).
   1. 빨간 테두리 박스  — 화면 와이어프레임에서 변경 영역을 감쌈
   2. 빨간 `변경사항` 스티커 — 변경 내역 요약
   3. Description 패널의 빨간 텍스트 — 신규·변경 스펙 서술
@@ -18,9 +20,13 @@
 기획서가 PDF 없이 이미지(PNG 등)로만 전달된 경우에도 그대로 사용할 수 있다.
 
 CLI 사용:
-  python detect_red_regions.py <pdf_or_image_or_dir> [--pages=START-END] [--dpi=150]
-                               [--output-dir=<dir>] [--min-area=400] [--pad=24]
+  python detect_red_regions.py <pdf_or_image_or_dir> [--color=red|blue|both] [--pages=START-END]
+                               [--dpi=150] [--output-dir=<dir>] [--min-area=400] [--pad=24]
                                [--no-crops] [--no-merge]
+
+  --color           : 검출할 변경 표시 색 (기본 `red`). `blue` / `both`(=`red,blue`) 가능
+                      파랑은 링크·기본 버튼·선택 탭·차트 등 **평상시 UI에도 흔한 색**이라
+                      빨강보다 오탐이 많다. 육안 확정이 더욱 중요하다
 
   --pages=START-END : 검출할 페이지 범위 (1-indexed, 양 끝 포함). 생략 시 전체
                       이미지 디렉터리 입력 시에는 파일명 정렬 순서의 인덱스를 의미한다
@@ -36,8 +42,8 @@ CLI 사용:
 병합하여 판독 가능한 단위로 묶는다 (`--no-merge`로 해제 가능).
 
 출력:
-  - `<output-dir>/pNNN_redMM.png` 크롭 이미지
-  - `<output-dir>/red_regions.json` 영역 메타데이터
+  - `<output-dir>/pNNN_redMM.png` · `pNNN_blueMM.png` 크롭 이미지
+  - `<output-dir>/red_regions.json` (빨강 단독) 또는 `change_regions.json` (파랑 포함) 메타데이터
   - stdout: 페이지별 영역 요약 (좌표, 크기, 형태 추정)
 
 형태 추정(`shape`)은 판독 우선순위를 정하는 힌트다:
@@ -48,6 +54,7 @@ CLI 사용:
 Python 사용:
   from detect_red_regions import detect
   regions = detect("input.pdf", pages=(70, 73), dpi=150)
+  regions = detect("input.pdf", colors=("red", "blue"))    # 빨강+파랑
   regions = detect("_workspace/prd_images/ch01")          # 이미지 디렉터리
   regions = detect("_workspace/prd_images/page_003.png")  # 이미지 단건
 """
@@ -85,6 +92,13 @@ RED_DOMINANCE = 55     # R - max(G, B) 최소 차이
 GRAY_MAX = 150         # G, B 최대값 (분홍·연빨강 배경 제외)
 
 
+# 파랑 판정 임계값 (RGB) — 빨강과 대칭 구조
+BLUE_MIN = 110         # B 최소값
+BLUE_DOMINANCE = 55    # B - max(R, G) 최소 차이
+
+VALID_COLORS = ("red", "blue")
+
+
 def _red_mask(arr: "np.ndarray") -> "np.ndarray":
     """RGB 배열에서 빨강 픽셀 마스크를 만든다."""
     r = arr[:, :, 0].astype(np.int16)
@@ -92,6 +106,39 @@ def _red_mask(arr: "np.ndarray") -> "np.ndarray":
     b = arr[:, :, 2].astype(np.int16)
     gb_max = np.maximum(g, b)
     return (r >= RED_MIN) & ((r - gb_max) >= RED_DOMINANCE) & (gb_max <= GRAY_MAX)
+
+
+def _blue_mask(arr: "np.ndarray") -> "np.ndarray":
+    """RGB 배열에서 파랑 픽셀 마스크를 만든다."""
+    r = arr[:, :, 0].astype(np.int16)
+    g = arr[:, :, 1].astype(np.int16)
+    b = arr[:, :, 2].astype(np.int16)
+    rg_max = np.maximum(r, g)
+    return (b >= BLUE_MIN) & ((b - rg_max) >= BLUE_DOMINANCE) & (rg_max <= GRAY_MAX)
+
+
+def _color_mask(arr: "np.ndarray", color: str) -> "np.ndarray":
+    if color == "red":
+        return _red_mask(arr)
+    if color == "blue":
+        return _blue_mask(arr)
+    raise ValueError(f"지원하지 않는 색: {color} (가능: {', '.join(VALID_COLORS)})")
+
+
+def _parse_colors(raw) -> tuple:
+    """`--color` 값을 정규화한다. 기본은 빨강 단독."""
+    if raw is None or raw is True:
+        return ("red",)
+    tokens = [t.strip().lower() for t in str(raw).replace("+", ",").split(",") if t.strip()]
+    if not tokens:
+        return ("red",)
+    if "both" in tokens or "all" in tokens:
+        return VALID_COLORS
+    for t in tokens:
+        if t not in VALID_COLORS:
+            raise ValueError(f"지원하지 않는 색: {t} (가능: red, blue, both)")
+    # 중복 제거 + 정의 순서 유지
+    return tuple(c for c in VALID_COLORS if c in tokens)
 
 
 def _label_regions(mask: "np.ndarray", min_area: int) -> list[dict]:
@@ -220,18 +267,44 @@ def _merge_pass(regions: list[dict], mode: str) -> tuple[list[dict], bool]:
     return merged, changed
 
 
+# 이 배수를 넘는 높이의 영역은 "구조물"(변경 표시 박스·스티커)로 보고 병합에서 제외한다.
+STRUCTURAL_H_FACTOR = 6
+
+
+def _split_structural(regions: list[dict]) -> tuple[list[dict], list[dict]]:
+    """글자 조각(병합 대상)과 구조물(병합 제외)을 분리한다.
+
+    병합의 목적은 글자 단위로 조각난 텍스트를 줄·문단으로 되붙이는 것이다.
+    변경 표시 **박스**는 이미 그 자체로 판독 단위이고 높이가 글자의 수십 배라,
+    병합에 끌어들이면 박스가 주변 텍스트를 연쇄로 삼켜 페이지 전체가 한 영역이 된다
+    (실측: 페이지 하나가 5646x3994 단일 영역으로 붕괴).
+    """
+    if len(regions) < 3:
+        return regions, []
+    heights = sorted(r["h"] for r in regions)
+    median_h = heights[len(heights) // 2] or 1
+    limit = STRUCTURAL_H_FACTOR * median_h
+    small = [r for r in regions if r["h"] <= limit]
+    large = [r for r in regions if r["h"] > limit]
+    return small, large
+
+
 def _merge_regions(regions: list[dict]) -> list[dict]:
     """글자 단위로 조각난 검출 결과를 줄 → 문단 순으로 병합한다.
 
     빨간 Description 텍스트는 글자마다 별개 영역으로 잡히므로
     병합 없이는 후보가 수백 개로 늘어나 판독에 쓸 수 없다.
+    변경 표시 박스처럼 큰 구조물은 병합에서 제외한다 (`_split_structural`).
     """
+    regions, structural = _split_structural(regions)
     for mode in ("line", "block", "line"):
         for _ in range(6):  # 연쇄 병합 수렴까지 반복
             regions, changed = _merge_pass(regions, mode)
             if not changed:
                 break
-    return regions
+    out = regions + structural
+    out.sort(key=lambda r: (r["y"], r["x"]))
+    return out
 
 
 def _guess_shape(w: int, h: int, fill_ratio: float) -> str:
@@ -328,8 +401,9 @@ def detect(
     pad: int = DEFAULT_PAD,
     save_crops: bool = True,
     merge: bool = True,
+    colors: "tuple | list | str | None" = ("red",),
 ) -> dict:
-    """PDF / 이미지 파일 / 이미지 디렉터리에서 빨강 영역을 검출한다.
+    """PDF / 이미지 파일 / 이미지 디렉터리에서 변경 표시(빨강·파랑) 영역을 검출한다.
 
     반환: {'input', 'input_type', 'dpi', 'pages': [{'page', 'source', 'width',
            'height', 'region_count', 'regions': [...]}]}
@@ -337,6 +411,7 @@ def detect(
     `dpi`는 PDF 입력에만 적용된다. 이미지 입력은 원본 해상도를 그대로 쓴다.
     """
     input_type = _classify_input(input_path)
+    colors = _parse_colors(",".join(colors) if isinstance(colors, (tuple, list)) else colors)
 
     if output_dir is None:
         base = os.path.basename(input_path.rstrip(os.sep))
@@ -352,19 +427,25 @@ def detect(
         "pdf": input_path if input_type == "pdf" else None,
         "dpi": dpi if input_type == "pdf" else None,
         "output_dir": output_dir,
+        "colors": list(colors),
         "pages": [],
     }
 
     for pno, id_prefix, img, source in _iter_pages(input_path, input_type, pages, dpi):
         arr = np.asarray(img)
 
-        mask = _red_mask(arr)
-        regions = _label_regions(mask, min_area)
-        if merge:
-            regions = _merge_regions(regions)
+        regions = []
+        for color in colors:
+            mask = _color_mask(arr, color)
+            found = _label_regions(mask, min_area)
+            if merge:
+                found = _merge_regions(found)
+            for idx, reg in enumerate(found, start=1):
+                reg["color"] = color
+                reg["id"] = f"{id_prefix}_{color}{idx:02d}"
+            regions.extend(found)
 
-        for idx, reg in enumerate(regions, start=1):
-            reg["id"] = f"{id_prefix}_red{idx:02d}"
+        for reg in regions:
             if save_crops:
                 x0 = max(0, reg["x"] - pad)
                 y0 = max(0, reg["y"] - pad)
@@ -386,7 +467,8 @@ def detect(
         )
 
     if save_crops:
-        meta_path = os.path.join(output_dir, "red_regions.json")
+        meta_name = "red_regions.json" if tuple(colors) == ("red",) else "change_regions.json"
+        meta_path = os.path.join(output_dir, meta_name)
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         result["meta"] = meta_path
@@ -402,22 +484,28 @@ def _page_label(page: dict) -> str:
     return f"p{page['page']:03d}"
 
 
+COLOR_LABEL = {"red": "빨강", "blue": "파랑"}
+
+
 def _print_summary(result: dict) -> None:
     total_regions = sum(p["region_count"] for p in result["pages"])
     dpi_note = f", DPI {result['dpi']}" if result.get("dpi") else ", 원본 해상도"
+    colors = result.get("colors") or ["red"]
+    color_note = "·".join(COLOR_LABEL.get(c, c) for c in colors)
     print(
-        f"빨강 영역 검출 완료 — 입력 {result['input_type']}, "
+        f"변경 표시({color_note}) 영역 검출 완료 — 입력 {result['input_type']}, "
         f"{len(result['pages'])}페이지, 총 {total_regions}개 후보 영역{dpi_note}"
     )
     for p in result["pages"]:
         label = _page_label(p)
         if not p["region_count"]:
-            print(f"\n{label} ({p['width']}x{p['height']}): 빨강 영역 없음")
+            print(f"\n{label} ({p['width']}x{p['height']}): {color_note} 영역 없음")
             continue
         print(f"\n{label} ({p['width']}x{p['height']}): {p['region_count']}개")
         for reg in p["regions"]:
             print(
-                f"  {reg['id']}  shape={reg['shape']:<9} "
+                f"  {reg['id']}  color={COLOR_LABEL.get(reg.get('color', 'red'), '?')} "
+                f"shape={reg['shape']:<9} "
                 f"pos=({reg['x']},{reg['y']}) size={reg['w']}x{reg['h']} "
                 f"fill={reg['fill_ratio']:.2f}"
                 + (f"  → {reg['crop']}" if reg.get("crop") else "")
@@ -429,6 +517,12 @@ def _print_summary(result: dict) -> None:
         "    삭제 버튼, 차트의 빨강 등 원래부터 빨간 UI 요소). 반드시 이미지를 직접 읽어\n"
         "    변경 표기인지 확정할 것. shape=box / text_line 을 우선 판독하면 효율적이다."
     )
+    if "blue" in colors:
+        print(
+            "⚠️  파랑은 링크·기본 버튼·선택된 탭·차트 계열 등 **평상시 UI에도 흔한 색**이다.\n"
+            "    빨강보다 오탐 비율이 높으므로 파랑 후보는 특히 육안 확정을 거칠 것.\n"
+            "    간지(표지) 페이지는 배경 전체가 파랑일 수 있어 통째로 잡힌다 — 변경분이 아니다."
+        )
 
 
 def main(argv: list[str]) -> int:
@@ -460,6 +554,7 @@ def main(argv: list[str]) -> int:
             pad=int(opts.get("--pad", DEFAULT_PAD)),
             save_crops="--no-crops" not in opts,
             merge="--no-merge" not in opts,
+            colors=opts.get("--color"),
         )
     except (FileNotFoundError, ValueError, ImportError) as e:
         print(f"오류: {e}", file=sys.stderr)
