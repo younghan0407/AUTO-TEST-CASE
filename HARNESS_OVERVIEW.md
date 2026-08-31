@@ -134,7 +134,7 @@ testcase-auto/
 | `detect_strikethrough.py` | **취소선 후보 검출 — 삭제 변경분 탐지.** 색 검출(`detect_red_regions.py`)로도 PDF 텍스트 레이어로도 잡히지 않는 표기를 기하학적으로 찾는다(두께 ≤ N px + **위·아래 양쪽에 글자 잉크** → 밑줄·구분선과 구별). `--color-only` 로 무채색 글자획·괘선 제거. 세로로 규칙적인 연속 런은 "하위 트리 전체 취소선"으로 묶어 보고. **`--min-len` 은 문서 글자 폭 실측값으로 정할 것**(한글 가로획이 짧은 수평선). **"0건"을 삭제 없음의 근거로 쓰려면 양성 대조 필수.** 오탐 포함 → 육안 확정 | `python detect_strikethrough.py <이미지\|디렉터리> [--color-only] [--min-len=70] [--max-thick=8] [--json]` |
 | `check_image_quality.py` | 이미지 판독 품질 진단 — 해상도(짧은 변)·선명도(라플라시안 분산)·대비·파일 훼손을 측정해 `OK`/`주의`/`불가` 판정. `불가`가 있으면 종료 코드 `2`(파이프라인 게이트). 지표보다 **실제 판독 결과가 우선** | `python check_image_quality.py <이미지\|디렉터리> [--json=<path>] [--min-short-side=1200] [--min-sharpness=60]` |
 | `figma_api.py` | Figma REST API 클라이언트. `get_file`(depth 지정), `get_file_nodes`, `get_images`, `get_comments`, URL→file key 추출 | `python figma_api.py file\|nodes\|images <url_or_key> ...` |
-| `sheets_api.py` | Sheets API v4 (서비스 계정). `read`/`write`/`append`/`metadata`/`add_tab`/`share`/`batch_update`. HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
+| `sheets_api.py` | Sheets API v4 (서비스 계정). **CLI 하위 명령 5개** — `read`/`write`/`append`/`metadata`/`add_tab`. `get_metadata`·`share`·`batch_update`·`create_spreadsheet` 는 **Python 메서드 전용이며 CLI에 없다** (메타 조회의 CLI 이름은 `metadata`, Python 이름은 `get_metadata()`). HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
 | `oauth_sheet.py` | OAuth2 사용자 인증으로 **새 스프레드시트 생성** + 서비스 계정 자동 공유 | `python oauth_sheet.py auth` / `create <title> [share_email]` |
 
 **DPI 이중 변환 전략** — 스펙 페이지는 `좌측 UI 화면 + 우측 Description 패널` 구조이므로 두 소스를 다른 해상도로 준비한다.
