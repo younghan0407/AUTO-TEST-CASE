@@ -184,7 +184,11 @@ def _list_targets(path: str) -> list:
 
 
 def _group_consecutive(runs: list, tol: int = 90) -> list:
-    """세로로 규칙적으로 이어지는 런을 묶는다 — 하위 트리 전체 취소선의 신호다."""
+    """세로로 규칙적으로 이어지는 런을 묶는다 — 하위 트리 전체 취소선의 신호다.
+
+    같은 y의 조각들은 **한 줄**이다 (한 줄이 단어 단위로 끊겨 여러 런으로 잡힌다).
+    "여러 줄"로 세면 한 줄짜리 취소선을 하위 트리 전체 취소선으로 오보한다.
+    """
     groups = []
     for r in sorted(runs, key=lambda x: x["y"]):
         if groups and (r["y"] - groups[-1][-1]["y"]) <= tol:
@@ -192,6 +196,15 @@ def _group_consecutive(runs: list, tol: int = 90) -> list:
         else:
             groups.append([r])
     return groups
+
+
+def _distinct_lines(group: list, tol: int = 6) -> list:
+    """그룹 안의 서로 다른 y(=줄) 목록. 같은 줄의 조각은 하나로 센다."""
+    ys = []
+    for r in sorted(group, key=lambda x: x["y"]):
+        if not ys or (r["y"] - ys[-1]) > tol:
+            ys.append(r["y"])
+    return ys
 
 
 def main(argv: list) -> int:
@@ -234,10 +247,13 @@ def main(argv: list) -> int:
 
         print(f"\n{label} ({w}x{h}): {len(runs)}개 후보")
         for group in _group_consecutive(runs):
-            if len(group) >= 3:
-                ys = [g["y"] for g in group]
-                print(f"  ⬐ 연속 {len(group)}줄 (y {ys[0]}~{ys[-1]}) — "
+            lines = _distinct_lines(group)
+            if len(lines) >= 3:
+                print(f"  ⬐ 연속 {len(lines)}줄 (y {lines[0]}~{lines[-1]}, 조각 {len(group)}개) — "
                       f"하위 트리 전체 취소선일 가능성 높음")
+            elif len(lines) == 1 and len(group) > 1:
+                print(f"  ⬐ 1줄 (y {lines[0]}) 이 조각 {len(group)}개로 검출됨 "
+                      f"— 단어 단위 분할이며 여러 줄이 아니다")
             for r in group:
                 mark = "유채색" if r["chromatic"] else "무채색"
                 print(f"    y={r['y']:<6} x={r['x']}~{r['x2']:<6} len={r['len']:<5} "
