@@ -71,7 +71,7 @@ testcase-auto/
 │   │   └── testcase-reviewer.md
 │   ├── skills/                   # 스킬 5개(+메타스킬)
 │   │   ├── testcase-auto/        # 오케스트레이터
-│   │   ├── prd-analyzer/         # + scripts/figma_api.py, pdf_to_images.py, detect_red_regions.py, check_image_quality.py
+│   │   ├── prd-analyzer/         # + scripts/figma_api.py, pdf_to_images.py, detect_red_regions.py, detect_strikethrough.py, check_image_quality.py
 │   │   ├── sheet-operator/       # + scripts/sheets_api.py, oauth_sheet.py
 │   │   ├── testcase-generator/
 │   │   ├── testcase-reviewer/
@@ -115,7 +115,7 @@ testcase-auto/
 |------|------|------|--------------|
 | **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, 챕터 루프 제어, 사용자 게이트 관리 | — |
 | **양식 사양** (`.claude/formats/team-viola.md`, `team-trombone.md`) | 데이터 | 제품별 컬럼 구조(**VIOLA A~X 24 / TROMBONE A~W 23**)·enum·구분×우선순위 결합·문체·표기 컨벤션·권위 규칙 + **관리대상 컬럼**(VIOLA `K8S`/`CI·CD`/`BF(공통)`). VIOLA 331행 / TROMBONE 3,953행 전수 실측 결과를 커밋해 재사용. 대상 시트 솔루션 컬럼으로 자동 선택 | — |
-| **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차 (전체 / 변경분 한정) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `check_image_quality.py` |
+| **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차 (전체 / 변경분 한정) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
 | **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분류별 개수, 우선순위 정책 | — |
 | **testcase-reviewer** | 검증 규칙 | 3경계면 교차 비교 절차, 권고 분류(Critical/Major/Minor) | — |
@@ -130,10 +130,11 @@ testcase-auto/
 | 스크립트 | 기능 | CLI |
 |---------|------|-----|
 | `pdf_to_images.py` | PDF → 페이지별 PNG. `--crop-desc`로 Description 패널(x 53%~100%) 크롭, `--pages=START-END`로 범위 지정 | `python pdf_to_images.py <pdf> [--dpi=150] [--crop-desc] [--output-dir] [--pages=1-13]` |
-| `detect_red_regions.py` | 변경 표시(빨강) 영역 검출 + 크롭. **PDF / 이미지 파일 / 이미지 디렉터리 모두 입력 가능**(`--dpi`는 PDF만 적용). 글자 단위 조각을 줄→문단으로 병합. `shape`(box/text_line/blob)로 판독 우선순위 힌트 제공. **오탐 포함(원형 번호 배지·필수 표시 `*`·에러 아이콘) → 육안 확정 필수** | `python detect_red_regions.py <pdf\|이미지\|디렉터리> [--pages=2-3] [--dpi=150] [--output-dir] [--no-merge]` |
+| `detect_red_regions.py` | 변경 표시(**빨강·파랑**) 영역 검출 + 크롭. **PDF / 이미지 파일 / 이미지 디렉터리 모두 입력 가능**(`--dpi`는 PDF만 적용). `--color=red\|blue\|both`(기본 `red`) — 표시색은 기획서마다 다르므로 실측해 지정한다. 글자 단위 조각을 줄→문단으로 병합하되 **큰 구조물(변경 박스)은 병합에서 제외**(박스가 주변 텍스트를 연쇄로 삼켜 페이지 전체가 한 영역으로 붕괴하는 것을 막는다). `shape`(box/text_line/blob)로 판독 우선순위 힌트 제공. **오탐 포함(원형 번호 배지·필수 표시 `*`·에러 아이콘·페이지 외곽 아트보드 프레임·파랑의 링크·기본 버튼·선택 탭) → 육안 확정 필수** | `python detect_red_regions.py <pdf\|이미지\|디렉터리> [--color=both] [--pages=2-3] [--dpi=150] [--output-dir] [--no-merge]` |
+| `detect_strikethrough.py` | **취소선 후보 검출 — 삭제 변경분 탐지.** 색 검출(`detect_red_regions.py`)로도 PDF 텍스트 레이어로도 잡히지 않는 표기를 기하학적으로 찾는다(두께 ≤ N px + **위·아래 양쪽에 글자 잉크** → 밑줄·구분선과 구별). `--color-only` 로 무채색 글자획·괘선 제거. 세로로 규칙적인 연속 런은 "하위 트리 전체 취소선"으로 묶어 보고. **`--min-len` 은 문서 글자 폭 실측값으로 정할 것**(한글 가로획이 짧은 수평선). **"0건"을 삭제 없음의 근거로 쓰려면 양성 대조 필수.** 오탐 포함 → 육안 확정 | `python detect_strikethrough.py <이미지\|디렉터리> [--color-only] [--min-len=70] [--max-thick=8] [--json]` |
 | `check_image_quality.py` | 이미지 판독 품질 진단 — 해상도(짧은 변)·선명도(라플라시안 분산)·대비·파일 훼손을 측정해 `OK`/`주의`/`불가` 판정. `불가`가 있으면 종료 코드 `2`(파이프라인 게이트). 지표보다 **실제 판독 결과가 우선** | `python check_image_quality.py <이미지\|디렉터리> [--json=<path>] [--min-short-side=1200] [--min-sharpness=60]` |
 | `figma_api.py` | Figma REST API 클라이언트. `get_file`(depth 지정), `get_file_nodes`, `get_images`, `get_comments`, URL→file key 추출 | `python figma_api.py file\|nodes\|images <url_or_key> ...` |
-| `sheets_api.py` | Sheets API v4 (서비스 계정). `read`/`write`/`append`/`metadata`/`add_tab`/`share`/`batch_update`. HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
+| `sheets_api.py` | Sheets API v4 (서비스 계정). **CLI 하위 명령 5개** — `read`/`write`/`append`/`metadata`/`add_tab`. `get_metadata`·`share`·`batch_update`·`create_spreadsheet` 는 **Python 메서드 전용이며 CLI에 없다** (메타 조회의 CLI 이름은 `metadata`, Python 이름은 `get_metadata()`). HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
 | `oauth_sheet.py` | OAuth2 사용자 인증으로 **새 스프레드시트 생성** + 서비스 계정 자동 공유 | `python oauth_sheet.py auth` / `create <title> [share_email]` |
 
 **DPI 이중 변환 전략** — 스펙 페이지는 `좌측 UI 화면 + 우측 Description 패널` 구조이므로 두 소스를 다른 해상도로 준비한다.
