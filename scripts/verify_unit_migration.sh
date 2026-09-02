@@ -36,6 +36,20 @@ absent() { # $1=라벨 $2=ERE 패턴 $3..=파일
   fi
 }
 
+absent_h() { # absent 와 같으나, 날짜(20NN-NN)를 담은 줄은 제외한다.
+             # 변경 이력·설계 근거 표는 과거 방식을 서술해야 하므로 정당하다.
+  local label="$1" pat="$2"; shift 2
+  local hits
+  hits=$(grep -nE "$pat" "$@" 2>/dev/null | grep -vE '20[0-9]{2}-[0-9]{2}')
+  if [ -n "$hits" ]; then
+    printf 'FAIL  %s\n' "$label"
+    printf '%s\n' "$hits" | sed 's/^/        /'
+    fail=1
+  else
+    printf 'ok    %s (이력 행 제외)\n' "$label"
+  fi
+}
+
 present() { # $1=라벨 $2=ERE 패턴 $3..=파일
   local label="$1" pat="$2"; shift 2
   local f missing=""
@@ -55,11 +69,11 @@ absent "산출물 접미사 _ch{N}"        '_ch\{N\}'                "${CORE[@]}
 absent "00_chapters.md 참조"          '00_chapters'             "${CORE[@]}" "${DOCS[@]}"
 absent "red_regions/ch{N} 경로"       'red_regions/ch'          "${CORE[@]}" "${DOCS[@]}"
 absent "CH{챕터2자리} 표기"           'CH\{챕터2자리\}'          "${CORE[@]}" "${DOCS[@]}"
-absent "챕터 루프"                    '챕터 루프'                "${CORE[@]}" "${DOCS[@]}"
-absent "간지 감지"                    '간지 감지'                "${CORE[@]}" "${DOCS[@]}"
-absent "챕터 단위 순차"               '챕터.{0,2}단위.{0,2}순차'  "${CORE[@]}" "${DOCS[@]}"
-absent "챕터 분석/챕터별 산출물"      '챕터 분석|챕터별'          "${CORE[@]}"
-absent "첫 챕터 게이트"               '첫 (번째 )?챕터'          "${CORE[@]}" "${DOCS[@]}"
+absent_h "챕터 루프"                  '챕터 루프'                "${CORE[@]}" "${DOCS[@]}"
+absent_h "간지 감지"                  '간지 감지'                "${CORE[@]}" "${DOCS[@]}"
+absent_h "챕터 단위 순차"             '챕터.{0,2}단위.{0,2}순차'  "${CORE[@]}" "${DOCS[@]}"
+absent_h "챕터 분석/챕터별 산출물"    '챕터 분석|챕터별'          "${CORE[@]}"
+absent_h "첫 챕터 게이트"             '첫 (번째 )?챕터'          "${CORE[@]}" "${DOCS[@]}"
 
 echo "── 필수: 화면 단위 구조 ───────────────────────────────────"
 present "화면 인덱스 파일"  '00_screen_index'  .claude/skills/testcase-auto/SKILL.md \
