@@ -218,7 +218,7 @@ for 화면 in 화면 인덱스:
 | `.claude/formats/common.md` | 15 | §6 표 참조 |
 | `.claude/skills/sheet-operator/SKILL.md` | 3 | 예시 문자열 (`"01_챕터명"`) |
 | `.claude/agents/sheet-analyst.md` | 1 | **기존 탭 CH-ID 최대 `NN` 실측 추가** (모드 A 꼬리 읽기에서 함께 확인) |
-| `.claude/formats/profile-*.md` | 3 | 챕터 언급 정리 |
+| ~~`.claude/formats/profile-*.md`~~ | 0 | **변경 없음.** 프로파일에는 `C-ID/CH-ID 는 common.md` 라는 포인터 한 줄만 있고 규칙 본문이 없다 (계획 단계 실측으로 확인) |
 | `HARNESS_OVERVIEW.md` · `HARNESS_WORKFLOW.md` · `README.md` · `docs/PROMPTS.md` | 106 | 설명 · 워크플로우 도해 · 프롬프트 예시 |
 | `CLAUDE.md` | — | 변경 이력 추가 (날짜 · 대상 · 사유) |
 
