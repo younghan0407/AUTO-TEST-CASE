@@ -21,7 +21,7 @@
      ▼
  ┌─────────────────────────────────────────────────────────────┐
  │ 오케스트레이터 스킬: testcase-auto                            │
- │  Phase 0 기본 정보 수집 → Phase 1 사전준비 → 챕터 루프 → 합본  │
+ │  Phase 0 기본 정보 수집 → Phase 1 사전준비 → 화면 루프 → 합본  │
  └─────────────────────────────────────────────────────────────┘
      │                              │
      │ (병렬)                        │ (병렬)
@@ -30,25 +30,25 @@
  (pdf_to_images.py)            └ 양식 사양(common + 프로파일) 로드
      │                          └ sheet-operator 스킬 → 대상 시트 헤더·꼬리 대조
      ▼                              ▼
- 간지 감지 → 챕터 목록          02_sheet_format.md (사양 + 실측 대조 결과)
+ 화면 인덱스 사전 스캔          02_sheet_format.md (사양 + 실측 대조 결과)
      │
      ▼ [사용자 확인 게이트]
- ┌──── 챕터 루프 (ch01 → ch02 → ... 순차) ────────────────────┐
+ ┌──── 화면 루프 (ch01 → ch02 → ... 순차) ────────────────────┐
  │                                                            │
- │  ① prd-analyst        → 01_prd_analysis_ch{N}.md           │
+ │  ① prd-analyst        → 01_prd_analysis_s{NN}.md           │
  │      └ prd-analyzer 스킬 (Description 우선 판독)            │
  │                ▼                                           │
- │  ② testcase-writer    → 03_testcases_ch{N}.md + 시트 append │
+ │  ② testcase-writer    → 03_testcases_s{NN}.md + 시트 append │
  │      └ testcase-generator 스킬 (케이스 도출)                │
  │      └ sheet-operator 스킬 (batch 쓰기)                     │
  │                ▼                                           │
- │  ③ testcase-reviewer  → 04_review_report_ch{N}.md          │
+ │  ③ testcase-reviewer  → 04_review_report_s{NN}.md          │
  │      └ testcase-reviewer 스킬 (3개 경계면 교차 검증)         │
  │      └ Critical 발견 시 ②에 재작성 요청 (최대 1회 루프)      │
  └────────────────────────────────────────────────────────────┘
      │
      ▼
- Phase 5: 챕터별 산출물 합본 + 종합 보고 → Phase 6: 피드백/진화
+ Phase 5: 화면별 합본 + 전체 집계 리뷰 + 종합 보고 → Phase 6: 피드백/진화
 ```
 
 **핵심 설계 사상 5가지**
@@ -56,7 +56,7 @@
 | 사상 | 내용 |
 |------|------|
 | **기본 정보 선(先)수집** | 제품 유형·기획서 유형·예외 항목·기획서 경로·시트·탭 5가지를 **분석 착수 전에 확정**한다. 추정한 항목 하나가 전 행에 박히기 때문에, 답이 없으면 진행하지 않는다 (2026-09-02 신설) |
-| 챕터 단위 순차 처리 | 전체 일괄 처리 시 누락이 많아, 간지(챕터 구분 슬라이드) 기준으로 잘라 한 챕터씩 완결 처리 |
+| 화면 ID 단위 순차 처리 | 전체 일괄 처리는 누락이 많았고(2026-06-11 챕터 순차로 전환), 챕터 단위는 시트의 식별 축(`화면 ID`)과 어긋났다. 2026-09-02에 화면 ID 1개 단위로 재편 — 화면 하나를 시트 작성까지 끝낸 뒤 다음으로 넘어간다 |
 | Description 최우선 | 기획서 우측 Description 패널이 1순위 소스, UI 화면은 보완용. Description 항목은 100% 케이스화 의무 |
 | atomic 단위 생성 | 팀이 정착시킨 양식이 atomic(단일 검증 1케이스)이므로 시나리오 묶음 금지 |
 | 판단하지 않고 기록 | 불명확·불일치는 추측 대신 `[UI↔DESC 불일치]`, `확인 불가`로 명시하고 사용자에게 위임 |
@@ -108,10 +108,10 @@ testcase-auto/
 
 | 에이전트 | 역할 | 사용 스킬 | 산출물 |
 |---------|------|----------|--------|
-| **prd-analyst** | 기획서(PDF/Figma/이미지) 판독 → 화면·Description·UI 요소·플로우·화면 ID 추출 | `prd-analyzer` | `01_prd_analysis_ch{N}.md` |
+| **prd-analyst** | 기획서(PDF/Figma/이미지) 판독 → 화면·Description·UI 요소·플로우·화면 ID 추출 | `prd-analyzer` | `01_prd_analysis_s{NN}.md` |
 | **sheet-analyst** | 양식 사양(공통 골격 + 제품 프로파일) 로드 + 대상 시트 드리프트 검증 (헤더·마지막 ID·신규 enum) | `sheet-operator` | `02_sheet_format.md` |
-| **testcase-writer** | 분석 결과 + 양식 → 실제 TC 도출 및 시트 batch 작성 | `testcase-generator`, `sheet-operator` | `03_testcases_ch{N}.md` + 시트 행 |
-| **testcase-reviewer** | 3개 경계면 교차 검증 QA | `testcase-reviewer`, `sheet-operator` | `04_review_report_ch{N}.md` |
+| **testcase-writer** | 분석 결과 + 양식 → 실제 TC 도출 및 시트 batch 작성 | `testcase-generator`, `sheet-operator` | `03_testcases_s{NN}.md` + 시트 행 |
+| **testcase-reviewer** | 3개 경계면 교차 검증 QA | `testcase-reviewer`, `sheet-operator` | `04_review_report_s{NN}.md` |
 
 각 에이전트 정의는 동일한 6개 섹션 구조를 가진다: 핵심 역할 / 작업 원칙 / 입력 프로토콜 / 출력 프로토콜 / 팀 통신 프로토콜 / 에러 핸들링 / 재호출 지침 / 사용 스킬.
 
@@ -126,7 +126,7 @@ testcase-auto/
 
 | 스킬 | 유형 | 역할 | 번들 스크립트 |
 |------|------|------|--------------|
-| **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 5개 수집 게이트**, 챕터 루프 제어, 사용자 게이트 관리 | — |
+| **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 5개 수집 게이트**, 화면 루프 제어, 사용자 게이트 관리 | — |
 | **양식 사양** (`.claude/formats/`) | 데이터 | **공통 골격 1 + 제품 프로파일 3.** 컬럼 구조는 **전 제품 A~W 23컬럼 통일**. 케이스를 쓰려면 `common.md` **+ 해당 프로파일 두 개를 함께** 읽는다 | — |
 | **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차 (신규 / 변경분 한정) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
@@ -205,7 +205,7 @@ testcase-auto/
    |------|-------|------------|
    | 생성 모드 (atomic / scenario) | **atomic** | 사용자가 시나리오 단위를 명시 요청할 때만 |
    | 취소선 = 삭제 표기 여부 | — | **기획서 유형이 `변경` 이면 묻는다.** 취소선은 색 검출에 잡히지 않아 알려주지 않으면 삭제 변경분이 통째로 누락된다 |
-   | 분석 범위 (특정 챕터만) | 전체 | 사용자가 부분 처리를 요청할 때 |
+   | 분석 범위 (특정 화면만) | 전체 | 사용자가 부분 처리를 요청할 때 |
    | 양식 사양 갱신 | 하지 않음 | `"양식 사양 갱신해줘"` 라고 할 때만 (참고 시트 URL 요청) |
 
    > **묻지 말아야 할 것 — 변경 표시색.** 색은 사용자 진술보다 스크립트 실측이 정확하다. 1-A-3에서 `--color=both --no-crops` 로 훑어 확정한다. (2026-09-01 실측: 사용자가 "빨강·파랑"이라고 알려줬으나 파랑 후보 21건이 **전부 오탐**이었다)
@@ -218,7 +218,7 @@ testcase-auto/
 |-------------------|-----------|----------|
 | 없음 | — | 초기 실행 (Phase 1부터 전체) |
 | 있음 | "다시"/"재실행" | 기존을 `_workspace_prev/`로 이동 후 새 실행 |
-| 있음 | "특정 챕터만 보완" | 부분 재실행 (해당 챕터만, 나머지 재사용) |
+| 있음 | "특정 화면만 보완" | 부분 재실행 (인덱스에서 순번 특정, 해당 화면만, 나머지 재사용) |
 | 있음 | 변경 없음 | 이어 실행 (미완료 단계부터) |
 
 6. **시트 권한 안내** — 대상 시트에 `testcase-auto-agent@testcase-auto.iam.gserviceaccount.com`을 편집자로 공유했는지 확인 요청 (참고 시트는 사양 갱신 시에만)
@@ -226,40 +226,43 @@ testcase-auto/
 ### Phase 1 — 사전 준비 (유일한 병렬 구간)
 
 - **1-A 이미지 변환** (PDF 입력 시): 전체 150 DPI + Description 크롭 200 DPI 두 번 실행
-- **1-B 간지 감지**: 경량 스캔 에이전트가 전체 이미지를 훑어 챕터 구분 슬라이드를 식별
-  - 간지 특징: 어두운 단색 배경 전면 / UI·Description 패널 없음 / 대분류 제목 / 우측 하단 챕터 번호+소제목
+- **1-B 화면 인덱스 사전 스캔**: 경량 스캔 에이전트가 전체 이미지를 얕게 훑어 화면 식별자를 추출하고 처리 단위 목록을 만든다. 공통 DESC 후보에 C-ID를 선발급한다
+  - 판독 깊이: 화면 식별자 / 페이지 경계 / DESC 항목 제목 / 상호 참조 원문까지. 본 판독은 Phase 2
+  - 경계 규칙: 한 화면이 여러 페이지면 묶고, 한 페이지에 여러 화면 ID면 중복 등재. 간지·목차는 제외, 공통 정책 페이지는 `NOID-{일련번호}` 독립 단위
+  - 간지는 처리 단위가 아니라 **소속 간지 라벨**로 남아 분석 컨텍스트가 된다
   - 애매한 페이지는 후보 표시 후 1-C에서 사용자 판단
-- **1-C 사용자 확인 게이트 (필수)**: 챕터 목록을 제시하고 OK까지 반복 수정 → 확정본을 `00_chapters.md`에 저장
-- **1-A-3 변경 표시 검출** (기획서 유형이 `변경` 일 때): `--color=both --no-crops` 로 쓰인 색을 먼저 실측한 뒤 검출. 출력은 **후보**이므로 오탐(원형 번호 배지, 필수 `*`, 페이지 외곽 아트보드 프레임, 파랑의 링크·기본 버튼·선택 탭 등)은 챕터 에이전트가 육안 확정
+- **1-C 사용자 확인 게이트 (필수)**: 화면 인덱스 + 화면 수 + 예상 사이클(`3N+1`)을 제시하고 OK까지 반복 수정 → 확정본을 `00_screen_index.md`에 저장
+- **1-A-3 변경 표시 검출** (기획서 유형이 `변경` 일 때): `--color=both --no-crops` 로 쓰인 색을 먼저 실측한 뒤 검출. 출력은 **후보**이므로 오탐(원형 번호 배지, 필수 `*`, 페이지 외곽 아트보드 프레임, 파랑의 링크·기본 버튼·선택 탭 등)은 화면 에이전트가 육안 확정. 검출은 전 페이지 1회만 실행하고 오케스트레이터가 화면별 페이지 범위로 잘라 전달
 - **1-D sheet-analyst** (1-A와 병렬 시작): **양식 사양(`common.md` + 제품 프로파일) 로드 + 대상 시트 헤더 1행·꼬리 20~50행 실측 대조** → `02_sheet_format.md`. 프로파일은 Phase 0 (1) 제품 유형에서 이미 확정됐고, 여기서는 시트 솔루션 컬럼 실측값과 **대조만** 한다(어긋나면 보고). 참고 시트 전수 스캔은 사양 갱신(모드 B) 전용. 모드 미지정 시 여기서 나온 atomic/scenario 판정을 사용자에게 보고하고 확인
 
-### Phase 2~4 — 챕터 루프 (순차)
+### Phase 2~4 — 화면 루프 (순차)
 
-확정된 챕터를 순서대로, 챕터당 `분석 → 생성/작성 → 리뷰`를 완결시킨 뒤 다음 챕터로 넘어간다.
+확정된 화면을 순번대로, 화면당 `분석 → 생성/작성 → 리뷰`를 완결시킨 뒤 다음 화면으로 넘어간다.
 
-**Phase 2 (분석)** — `prd-analyst` 1개 에이전트가 해당 챕터 이미지를 순차 판독
+**Phase 2 (분석)** — `prd-analyst` 1개 에이전트가 해당 화면 이미지를 순차 판독
 
 - 에이전트당 안전 이미지 한도 12~13페이지(전체+크롭 합산 ~26장). 초과 시에도 병렬 분할 대신 **단일 에이전트가 13페이지씩 나눠 순차 처리**하며 앞 구간 맥락을 유지
 - 스펙 페이지 절차: ① 크롭 이미지로 Description 전수 추출(계층 번호·`[강조]`·화면 ID) → ② 전체 이미지로 UI 보완 → ③ UI↔DESC 비교 후 불일치 태깅
-- 챕터 전체 판독 후 페이지 간 Description을 비교해 `[공통 DESC: 페이지ID 목록]` 태깅 (각 페이지에 모두 포함, 생략 금지)
+- 담당 화면 판독 후 Description을 C-ID 레지스터와 대조해 `[공통 DESC CN]` 태깅 (각 페이지에 모두 포함, 생략 금지). 레지스터에 없는 공통 정의는 발급 요청
 
 **Phase 3 (생성 + 작성)** — `testcase-writer`
 
 1. `testcase-generator` 규칙으로 케이스 도출
-2. `03_testcases_ch{N}.md` 작성 — 분포 표는 실제 카운트
-3. **검토 게이트: 첫 챕터만** 사용자 확인, 이후 챕터는 자동 진행
+2. `03_testcases_s{NN}.md` 작성 — 분포 표는 실제 카운트
+3. **검토 게이트: 첫 화면만** 사용자 확인, 이후 화면은 자동 진행
 4. `sheet-operator`로 시트 batch append → `updatedRange` 보고
    - 신규 탭이면 `add_tab` → **생성 직후 `metadata` 의 `title` 복사** → `common.md` 의 헤더 원문을 `A1:W1`(23컬럼)에 기입 → 2행부터 append
 
 **Phase 4 (리뷰)** — `testcase-reviewer`
 
-- 3경계면 교차 비교 → `04_review_report_ch{N}.md`
-- Critical 발생 시: reviewer → writer 재작성 요청 → 재리뷰 (**최대 1회 루프**). 2차에도 Critical 잔존이면 사용자 결정 위임 후 다음 챕터 진행
-- 첫 챕터에서 **패턴성 이슈**(표시 형식 케이스 누락, enum 오류 등)가 발견되면 남은 챕터 진행 전 사용자에게 보고하고 방향 조정 확인
+- 3경계면 교차 비교 → `04_review_report_s{NN}.md`
+- Critical 발생 시: reviewer → writer 재작성 요청 → 재리뷰 (**최대 1회 루프**). 2차에도 Critical 잔존이면 사용자 결정 위임 후 다음 화면 진행
+- 화면 리뷰에서는 **분포 편차·TC ID 연속성을 점검하지 않는다** — 전역 지표이며 화면 1개 표본에서는 상시 오탐이다 (Phase 5로 이관)
+- 첫 화면에서 **패턴성 이슈**(표시 형식 케이스 누락, enum 오류 등)가 발견되면 남은 화면 진행 전 사용자에게 보고하고 방향 조정 확인
 
 ### Phase 5 — 합본 + 종합 보고
 
-챕터별 파일을 순서대로 합산하여 `01_prd_analysis.md`, `03_testcases.md`(ID 순 정렬), `04_review_report.md` 생성. 종합 보고에 챕터별 표(제목/페이지/케이스 수/리뷰 결과), 전체 결과(총 케이스, 분류 비율, 작성 위치·행 범위, 이슈 집계), 산출물 목록, 다음 단계 권장을 담는다.
+화면별 파일을 순번대로 합산하여 `01_prd_analysis.md`, `03_testcases.md`(ID 순 정렬), `04_review_report.md` 생성. **전체 집계 리뷰 1회**(분포 편차 · TC ID·`No` 연속성 · C-ID 레지스터 대조 · CH-ID 충돌 · 인덱스 상태) 후 종합 보고에 화면별 표(화면 ID/페이지/케이스 수/시트 행/리뷰 결과), 전체 결과(총 케이스, 분류 비율, 작성 위치·행 범위, 이슈 집계), 산출물 목록, 다음 단계 권장을 담는다.
 
 ### Phase 6 — 피드백 및 진화 (선택)
 
@@ -273,13 +276,14 @@ testcase-auto/
 
 | 자료 | 위치 | 생성자 | 소비자 |
 |------|------|--------|--------|
-| 챕터 목록 | `_workspace/00_chapters.md` | 오케스트레이터 (1-B~1-C) | prd-analyst, 사용자 확인 |
-| 챕터 분석 | `01_prd_analysis_ch{N}.md` | prd-analyst | testcase-writer, testcase-reviewer |
+| 화면 인덱스 | `_workspace/00_screen_index.md` | 오케스트레이터 (1-B~1-C, 루프 중 상태 갱신) | prd-analyst, writer, reviewer, 사용자 확인 |
+| C-ID 레지스터 | `_workspace/00_cid_register.md` | 오케스트레이터 (선발급/추가 발급) | prd-analyst (읽기·요청), writer |
+| 화면 분석 | `01_prd_analysis_s{NN}.md` | prd-analyst | testcase-writer, testcase-reviewer |
 | **양식 사양 — 공통 골격** | `.claude/formats/common.md` | 사람 (모드 B로 갱신) | sheet-analyst, writer, reviewer |
 | **양식 사양 — 제품 프로파일** | `.claude/formats/profile-{viola\|trombone\|bootfactory}.md` | 사람 (모드 B로 갱신) | 동상 — **공통 골격과 반드시 함께 읽는다** |
-| 시트 양식 (사양 + 실측 대조) | `02_sheet_format.md` | sheet-analyst | writer, reviewer (전 챕터 공유) |
-| 챕터 케이스 | `03_testcases_ch{N}.md` | testcase-writer | testcase-reviewer |
-| 챕터 리뷰 | `04_review_report_ch{N}.md` | testcase-reviewer | 오케스트레이터, 사용자 |
+| 시트 양식 (사양 + 실측 대조) | `02_sheet_format.md` | sheet-analyst | writer, reviewer (전 화면 공유) |
+| 화면 케이스 | `03_testcases_s{NN}.md` | testcase-writer | testcase-reviewer |
+| 화면 리뷰 | `04_review_report_s{NN}.md` | testcase-reviewer | 오케스트레이터, 사용자 |
 | 전체 합본 | `01_/03_/04_*.md` (ch 없는 파일) | 오케스트레이터 (Phase 5) | 사용자 |
 | 시트 작성 결과 | 구글 시트 (대상 URL) | testcase-writer | testcase-reviewer |
 
@@ -450,7 +454,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 
 ## 9. 에러 핸들링
 
-**원칙:** 1회 재시도 후 재실패 시 해당 챕터 결과 없이 다음 챕터로 진행하고 보고서에 누락 명시.
+**원칙:** 1회 재시도 후 재실패 시 해당 화면 결과 없이 다음 화면으로 진행하고, 인덱스 상태를 `실패` 로 남기고 보고서에 누락 명시.
 
 | 에러 | 대응 |
 |------|------|
@@ -467,8 +471,8 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 | 429 (rate limit) | 60초 대기 후 1회 재시도, 실패 시 부분 결과 보고 |
 | 400 | A1 범위 표기·탭 이름 재검토 |
 | 시트 쓰기 부분 실패 | 작성 지점 + 미작성 TC ID 목록 보고 |
-| 간지 감지 불가 | 사용자에게 페이지 범위 직접 입력 요청 |
-| 챕터 분석 0건 | 범위 재확인 후 재시도 또는 스킵 |
+| 화면 식별자를 못 찾음 | 식별자 필드명·위치 확인 요청 (간지 단위로 폴백하지 않는다) |
+| 화면 분석 0건 | 범위 재확인 후 재시도 또는 스킵 |
 | `pymupdf` 미설치 | 설치 안내 후 중단 |
 | 이미지 판독 불가 | 해당 페이지 스킵 + 보고서 명시 + DPI 상향 권장 |
 | 시트 데이터 5행 미만 | 일반 양식 fallback + 보고서에 명시 |
@@ -483,8 +487,8 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 |------|------|------|----------|
 | **기본 정보 5개 수집** | Phase 0 | 제품 유형 / 기획서 유형 + 예외 항목 / 기획서 경로 / 대상 시트 / 탭 | **필수 게이트** (추정 금지 — 답이 없으면 진행하지 않는다) |
 | **수집 결과 요약 확인** | Phase 0-4 | 확정된 값을 표로 제시 — 오타·오해를 잡을 마지막 지점 | 필수 |
-| **챕터 목록 확정** | Phase 1-C | 간지 감지 결과 확인/수정 (OK까지 반복) | **필수 게이트** |
-| **첫 챕터 TC 검토** | Phase 3 (ch01) | `03_testcases_ch01.md` 요약 확인 후 시트 작성 | **필수 게이트** (이후 챕터는 자동) |
+| **화면 인덱스 확정** | Phase 1-C | 사전 스캔 결과 확인/수정 (OK까지 반복) | **필수 게이트** |
+| **첫 화면 TC 검토** | Phase 3 (s01) | `03_testcases_s01.md` 요약 확인 후 시트 작성 | **필수 게이트** (이후 화면은 자동) |
 | 패턴 이슈 보고 | Phase 4 (ch01 후) | 반복성 Critical 발견 시 방향 조정 확인 | 조건부 |
 | 피드백 수집 | Phase 6 | 개선점·워크플로우 변경 | 선택 |
 
@@ -520,7 +524,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 
 ### 현재 산출물 상태
 
-`_workspace/`에 최근 실행 세트(분석·케이스·리뷰 + 합본 + `00_chapters.md` + 이미지)가 있고, 과거 실행본은 `_workspace_prev*`, `_workspace_공통`, `_workspace_일반_v1`, `_workspace_policy` 등 20여 개 디렉토리로 보관돼 있다. 모두 gitignore 대상이므로 clone 직후에는 존재하지 않는다.
+`_workspace/`에 최근 실행 세트(분석·케이스·리뷰 + 합본 + `00_screen_index.md` + 이미지)가 있고, 과거 실행본은 `_workspace_prev*`, `_workspace_공통`, `_workspace_일반_v1`, `_workspace_policy` 등 20여 개 디렉토리로 보관돼 있다. 모두 gitignore 대상이므로 clone 직후에는 존재하지 않는다.
 
 ### 정리된 불일치 2건 (2026-08-06 수정 완료)
 
