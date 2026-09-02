@@ -117,17 +117,17 @@ Google Sheets API v4를 서비스 계정 인증으로 호출하여 시트 읽기
 
    ```bash
    # ① 탭 생성 (기존 탭에 쓰는 경우 생략)
-   python scripts/sheets_api.py add_tab <SHEET_URL> "01_챕터명"
+   python scripts/sheets_api.py add_tab <SHEET_URL> "01_파드"
 
    # ② 생성 직후 metadata 로 실제 title 문자열을 받아 이후 모든 range 에 그대로 쓴다
    #    (한글 탭 이름 NFD/NFC 함정 — 「시트 구조 주의사항 2」 참조)
    python scripts/sheets_api.py metadata <SHEET_URL>
 
    # ③ 헤더 1행 — common.md 의 "헤더 원문" 23개를 그대로 사용
-   python scripts/sheets_api.py write <SHEET_URL> "'01_챕터명'!A1:W1" '[["No","솔루션","기능테스트 ID","요구사항 ID", ...]]'
+   python scripts/sheets_api.py write <SHEET_URL> "'01_파드'!A1:W1" '[["No","솔루션","기능테스트 ID","요구사항 ID", ...]]'
 
    # ④ 2행부터 케이스 batch append
-   python scripts/sheets_api.py append <SHEET_URL> "'01_챕터명'!A:W" '[[...],[...]]'
+   python scripts/sheets_api.py append <SHEET_URL> "'01_파드'!A:W" '[[...],[...]]'
    ```
 
    - 헤더 컬럼명은 **사양 원문 그대로** 쓴다. 임의로 다듬으면 이후 드리프트 검증이 불일치로 잡는다.
