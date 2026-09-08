@@ -78,11 +78,11 @@ testcase-auto/
 │   │   ├── testcase-writer.md
 │   │   └── testcase-reviewer.md
 │   ├── skills/                   # 스킬 5개(+외부 메타 스킬)
-│   │   ├── testcase-auto/        # 오케스트레이터
-│   │   ├── prd-analyzer/         # + scripts/figma_api.py, pdf_to_images.py, detect_red_regions.py, detect_strikethrough.py, check_image_quality.py
+│   │   ├── testcase-auto/        # 오케스트레이터 + scripts/build_brief.py
+│   │   ├── prd-analyzer/         # + references/{change-mode,figma,image-input}.md, scripts/figma_api.py, pdf_to_images.py, detect_red_regions.py, detect_strikethrough.py, check_image_quality.py
 │   │   ├── sheet-operator/       # + scripts/sheets_api.py, oauth_sheet.py
-│   │   ├── testcase-generator/
-│   │   ├── testcase-reviewer/
+│   │   ├── testcase-generator/   # + references/change-mode.md
+│   │   ├── testcase-reviewer/    # + references/change-mode.md, scripts/verify_sheet_rows.py
 │   │   └── harness/harness/      # 메타 스킬 — 외부 플러그인(revfactory/harness), gitignore 대상
 │   ├── formats/                  # 양식 사양 — 공통 골격 1 + 제품 프로파일 3
 │   │   ├── common.md             #   컬럼 골격(A~W 23) · 태그 체계 · C-ID/CH-ID · 변경분 모드 · 권위 규칙
@@ -128,10 +128,11 @@ testcase-auto/
 |------|------|------|--------------|
 | **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 5개 수집 게이트**, 화면 루프 제어, 사용자 게이트 관리 | — |
 | **양식 사양** (`.claude/formats/`) | 데이터 | **공통 골격 1 + 제품 프로파일 3.** 컬럼 구조는 **전 제품 A~W 23컬럼 통일**. 케이스를 쓰려면 `common.md` **+ 해당 프로파일 두 개를 함께** 읽는다 | — |
-| **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차 (신규 / 변경분 한정) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
+| **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차. **입력 유형·정책별 절은 `references/` 로 분리**(변경분 모드가 본문의 34%였다) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
-| **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분포 기준(사양 기반), 우선순위 정책 | — |
-| **testcase-reviewer** | 검증 규칙 | 3경계면 교차 비교 절차, 권고 분류(Critical/Major/Minor) | — |
+| **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분포 기준(사양 기반), 우선순위 정책. 변경분 모드(0-H)는 `references/` 분리 | — |
+| **testcase-reviewer** | 검증 규칙 | 3경계면 교차 비교 절차, 권고 분류(Critical/Major/Minor). **결정적 점검은 스크립트로 내렸다(3-0)** — 리뷰어는 판단이 필요한 것만 본다 | `verify_sheet_rows.py` |
+| `build_brief.py` | **역할별 브리핑 생성** — 사양 절을 역할(`analyst`/`writer`/`reviewer`/`sheet-analyst`)에 맞춰 **원문 그대로 발췌**(요약하지 않는다). `--doc-type=신규` + 예외 없음이면 변경분 모드 절 제외, 화면 인덱스 슬림판은 `analyst` 만. **`--coverage-check` 는 사양의 모든 절이 어느 역할엔가 배정됐는지 검사**하고 미배정이면 exit 3 — 새 절이 조용히 어느 브리핑에도 안 들어가는 사고를 막는다 | `python build_brief.py --role=<역할> --profile=<제품> --doc-type=<신규\|변경> [--index] [--phase0] [--has-change-exception] --out=<경로>` / `--coverage-check` |
 | **harness** | 메타 | 하네스 자체를 설계·확장·감사·진화 (Phase 0~7). **외부 플러그인**이라 이 저장소에 포함되지 않는다 — `/plugin marketplace add revfactory/harness` | — |
 
 스킬은 "**도구(스크립트 사용법)**"와 "**판단 규칙(무엇을 어떻게 도출할지)**"으로 역할이 갈린다. 에이전트는 자신의 역할에 맞는 스킬을 조합해서 쓴다.
@@ -155,15 +156,16 @@ testcase-auto/
 > **제안값**이다. 이 둘은 전 행에 박히는 상수라 나중에 바꾸려면 열 전체를 고쳐야 한다.
 > **팀 BF 원본 시트가 나오면 전수 스캔(모드 B)으로 교체하는 것이 정공법이다.**
 
-### 3-3. 스크립트 7개
+### 3-3. 스크립트 10개
 
 원본은 `.claude/skills/<스킬>/scripts/`에 있고, 프로젝트 루트 `scripts/`에 상대 심볼릭 링크가 걸려 있다. **모든 명령은 프로젝트 루트에서 `scripts/...` 경로로 실행한다.**
 
 | 스크립트 | 기능 | CLI |
 |---------|------|-----|
-| `pdf_to_images.py` | PDF → 페이지별 PNG. `--crop-desc`로 Description 패널(x 53%~100%) 크롭, `--pages=START-END`로 범위 지정 | `python pdf_to_images.py <pdf> [--dpi=150] [--crop-desc] [--output-dir] [--pages=1-13]` |
+| `pdf_to_images.py` | PDF → 페이지별 PNG. `--crop-desc`로 Description 패널(x 53%~100%) 크롭, `--pages=START-END`로 범위 지정. **`--tile=auto` 로 판독용 세로 분할** — 이미지는 모델 전달 시 긴 변 1568px로 축소돼 **올린 DPI가 버려진다**(실측: DESC 크롭 200 DPI는 한글 1자 9.9px → 판독 불가 / 4분할은 17.8px). 분할이 재크롭 왕복을 없애 **토큰도 페이지당 ~11.5K → ~6.5K** 로 줄인다. 변환 후 stderr에 유효배율·한글 예상 px 을 알림 | `python pdf_to_images.py <pdf> [--dpi=150] [--crop-desc] [--tile=auto\|N] [--tile-overlap=24] [--output-dir] [--pages=1-13]` |
 | `detect_red_regions.py` | 변경 표시(**빨강·파랑**) 영역 검출 + 크롭. **PDF / 이미지 파일 / 이미지 디렉터리 모두 입력 가능**(`--dpi`는 PDF만 적용). `--color=red\|blue\|both`(기본 `red`) — 표시색은 기획서마다 다르므로 실측해 지정한다. 글자 단위 조각을 줄→문단으로 병합하되 **큰 구조물(변경 박스)은 병합에서 제외**(박스가 주변 텍스트를 연쇄로 삼켜 페이지 전체가 한 영역으로 붕괴하는 것을 막는다). `shape`(box/text_line/blob)로 판독 우선순위 힌트 제공. **오탐 포함(원형 번호 배지·필수 표시 `*`·에러 아이콘·페이지 외곽 아트보드 프레임·파랑의 링크·기본 버튼·선택 탭) → 육안 확정 필수** | `python detect_red_regions.py <pdf\|이미지\|디렉터리> [--color=both] [--pages=2-3] [--dpi=150] [--output-dir] [--no-merge]` |
 | `detect_strikethrough.py` | **취소선 후보 검출 — 삭제 변경분 탐지.** 색 검출(`detect_red_regions.py`)로도 PDF 텍스트 레이어로도 잡히지 않는 표기를 기하학적으로 찾는다(두께 ≤ N px + **위·아래 양쪽에 글자 잉크** → 밑줄·구분선과 구별). `--color-only` 로 무채색 글자획·괘선 제거. 세로로 규칙적인 연속 런은 "하위 트리 전체 취소선"으로 묶어 보고. **`--min-len` 은 문서 글자 폭 실측값으로 정할 것**(한글 가로획이 짧은 수평선). **"0건"을 삭제 없음의 근거로 쓰려면 양성 대조 필수.** 오탐 포함 → 육안 확정 | `python detect_strikethrough.py <이미지\|디렉터리> [--color-only] [--min-len=70] [--max-thick=8] [--json]` |
+| `verify_sheet_rows.py` | **작성된 시트 행의 결정적(기계 판정) 양식 점검 + 로컬↔시트 전 셀 대조(`--diff`).** 헤더 원문·23컬럼·`피드백` 뒤 열 오염 · enum(우선순위·구분·`3 Depth`) · 구분×우선순위 결합 규칙 · `솔루션` 단일값 · `기능테스트 ID` 형식·중복 · `No` 연속성·중복 · Depth `-` vs 미사용 빈칸 · `비고`·`사전조건` 공란 · 절차 `N. ` 접두 · 예상 결과 명사형 · 본문 열 문체(백틱↔대괄호) · 셀 내 `\|`. **규칙은 `common.md` + 프로파일에서 파싱**하며 파싱 실패 시 하드코딩 폴백 없이 종료 코드 `3`. `--selftest` 로 검사기 자체 검증. 종료 코드 0/1/2/3 = 위반없음/Major이하/Critical/실행오류 | `python verify_sheet_rows.py --profile={viola\|trombone\|bootfactory} --sheet=<ID> --tab='<탭>' [--rows=2-56] [--tsv=f.tsv] [--json] [--selftest]` |
 | `check_image_quality.py` | 이미지 판독 품질 진단 — 해상도(짧은 변)·선명도(라플라시안 분산)·대비·파일 훼손을 측정해 `OK`/`주의`/`불가` 판정. `불가`가 있으면 종료 코드 `2`(파이프라인 게이트). 지표보다 **실제 판독 결과가 우선** | `python check_image_quality.py <이미지\|디렉터리> [--json=<path>] [--min-short-side=1200] [--min-sharpness=60]` |
 | `figma_api.py` | Figma REST API 클라이언트. `get_file`(depth 지정), `get_file_nodes`, `get_images`, `get_comments`, URL→file key 추출 | `python figma_api.py file\|nodes\|images <url_or_key> ...` |
 | `sheets_api.py` | Sheets API v4 (서비스 계정). **CLI 하위 명령 5개** — `read`/`write`/`append`/`metadata`/`add_tab`. `get_metadata`·`share`·`batch_update`·`create_spreadsheet` 는 **Python 메서드 전용이며 CLI에 없다** (메타 조회의 CLI 이름은 `metadata`, Python 이름은 `get_metadata()`). HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
