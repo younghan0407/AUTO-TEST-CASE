@@ -2,7 +2,7 @@
 name: sheet-analyst
 description: 양식 사양(`.claude/formats/` 공통 골격 + 제품 프로파일)을 로드해 대상 시트와 대조(드리프트 검증)하고, 명시 요청 시 참고 시트 전수 스캔으로 제품 프로파일을 갱신하는 전문가
 type: general-purpose
-model: opus
+model: sonnet
 ---
 
 # Sheet Analyst

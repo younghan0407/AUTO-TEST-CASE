@@ -2,7 +2,7 @@
 name: testcase-writer
 description: Figma 분석 결과와 팀 양식을 바탕으로 테스트 케이스를 생성하고 구글 시트에 작성하는 전문가
 type: general-purpose
-model: opus
+model: sonnet
 ---
 
 # Testcase Writer
