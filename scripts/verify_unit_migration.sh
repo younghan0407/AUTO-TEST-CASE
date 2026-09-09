@@ -114,6 +114,30 @@ present "정책 예외 태그"         '\[정책 예외\]'  .claude/skills/testc
                                                .claude/skills/testcase-generator/SKILL.md \
                                                .claude/skills/testcase-reviewer/SKILL.md
 
+echo "── 회귀 가드: 토큰 구조 개선의 안전장치 (2026-09-08) ─────"
+# 아래는 "비용을 줄이려다 품질 장치를 잃지 않았는가" 를 지킨다.
+present "합본 미독 규약"        '합본을 .Read. 로 열지 않는다|행 수·크기' \
+                                               .claude/skills/testcase-auto/SKILL.md
+present "서브에이전트 리턴 제한" '리턴은 20줄|리턴 규약' \
+                                               .claude/skills/testcase-auto/SKILL.md \
+                                               .claude/agents/prd-analyst.md \
+                                               .claude/agents/testcase-writer.md \
+                                               .claude/agents/testcase-reviewer.md
+present "타일링 = 해상도 확보"   'tile=auto'    .claude/skills/prd-analyzer/SKILL.md \
+                                               .claude/skills/testcase-auto/SKILL.md
+present "결정적 점검 스크립트"   'verify_sheet_rows' \
+                                               .claude/skills/testcase-reviewer/SKILL.md \
+                                               .claude/agents/testcase-reviewer.md
+present "브리핑은 요약이 아니다" '요약이 아니라|원문 발췌|발췌 원문' \
+                                               .claude/skills/testcase-auto/SKILL.md
+present "절 배정 가드 안내"      'coverage-check' .claude/skills/testcase-auto/SKILL.md
+present "배치는 호출 단위"       '산출물은 화면별|화면별로 분리' \
+                                               .claude/skills/testcase-auto/SKILL.md
+present "첫 배치는 단독"         '첫 배치|B01' .claude/skills/testcase-auto/SKILL.md
+present "케이스 본문 시트 단일출처" '03_rows_s|단일 출처' \
+                                               .claude/skills/testcase-generator/SKILL.md \
+                                               .claude/skills/testcase-reviewer/SKILL.md
+
 echo "── CLI 명령 오표기 가드 ───────────────────────────────────"
 absent "get_metadata 셸 명령 표기" 'sheets_api\.py get_metadata' "${CORE[@]}" "${DOCS[@]}"
 

@@ -87,9 +87,11 @@ python3 verify_setup.py
                    — 참고 시트 대신 기준. 공통 골격 + 프로파일을 함께 읽는다
 scripts/           스킬 하위 원본에 대한 심볼릭 링크 (루트에서 실행하기 위한 것)
   figma_api.py             Figma REST API 클라이언트
-  pdf_to_images.py         PDF → 페이지별 PNG 변환
+  pdf_to_images.py         PDF → 페이지별 PNG 변환 (--tile=auto 로 판독용 세로 분할)
   detect_red_regions.py    변경 표시 색 영역 검출 — PDF·이미지 모두 지원 (--color=red|blue|both)
   detect_strikethrough.py  취소선 후보 검출 — 삭제 변경분 탐지 (색·텍스트 검출로 안 잡히는 표기)
+  verify_sheet_rows.py     작성된 시트 행의 결정적 양식 점검 + 로컬↔시트 전 셀 대조 (--diff)
+  build_brief.py           역할별 브리핑 생성 — 사양 절 원문 발췌 (--coverage-check 로 배정 누락 검사)
   check_image_quality.py   이미지 판독 품질 진단 (해상도·선명도·훼손)
   sheets_api.py            Google Sheets 읽기·쓰기 (서비스 계정)
   oauth_sheet.py           새 스프레드시트 생성 (OAuth2)

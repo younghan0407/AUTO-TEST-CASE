@@ -1,0 +1,1 @@
+../.claude/skills/testcase-auto/scripts/build_brief.py
