@@ -22,6 +22,18 @@
 - 모든 신규 문서는 **한국어**로 쓴다. 기존 파일들의 문체(단정형 서술, 실측 근거 병기)를 따른다.
 - 커밋 메시지 끝에 `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>` 를 붙인다.
 - 작업 브랜치는 이미 `harness/testcase-augment` 다 (스펙 커밋이 올라가 있다).
+- **명령을 실행할 때는 `python3` 을 쓴다.** 이 환경에는 `python` 이 없다 (`python3` 3.9.6만 있다).
+  이 계획 본문의 `Run:` 명령에 `python` 으로 적힌 것이 있으면 `python3` 으로 바꿔 실행한다.
+  **다만 문서·스킬 본문에 *쓰는* 예시 명령은 `python scripts/…` 그대로 둔다** — 저장소 기존
+  문서 28곳이 그 표기이며, 표기 통일은 이 작업의 범위가 아니다.
+- **Python 3.9 호환.** 새 스크립트는 `from __future__ import annotations` 를 반드시 넣는다
+  (`dict[str, str]`·`str | None` 주석이 3.9에서 그 없이는 죽는다). 기존 스크립트와 같은 방식이다.
+- **`verify_sheet_rows.py` 는 이 작업의 수정 대상이 아니다.** `common.md` 를 고쳐 그 스크립트의
+  `--selftest` 가 깨지면 **`common.md` 쪽 표기를 기존 표 형식에 맞춘다.**
+- 검증 기준선 (변경 전 실측): `verify_unit_migration.sh` → `PASS` /
+  `build_brief.py --coverage-check` → 절 74종 전부 배정 /
+  `verify_sheet_rows.py --selftest` → 위반 17종 검출 + 오탐 0건.
+  **어느 태스크도 이 셋을 깨뜨린 채 완료하지 않는다.**
 
 ---
 
@@ -79,7 +91,8 @@
 2. **파생 태그가 붙은 행은 다음 실행에서 원본이 되지 않는다.** 원본 탭과 작성 대상 탭이 같을 수 있으므로
    (같은 시트의 같은 탭에 이어 쓰는 것이 허용된다) 이 규칙이 없으면 재실행 때 파생분에서 또 파생이 나온다.
    그 행은 **중복 제거용 커버리지 맵에만** 쓰인다
-3. **파생 케이스는 프로파일의 구분 분포 대조 대상이 아니다.** 예외 파생은 정의상 `비정상`·`엣지` 만,
+3. **파생 케이스는 프로파일의 구분 분포 대조 대상이 아니다 — 분포 편차 점검을 적용하지 않는다.**
+   예외 파생은 정의상 `비정상`·`엣지` 만,
    권한 파생은 `정상`·`부수` 만 만든다 — 어느 프로파일로 채점해도 **지배 구분 역전이 반드시 뜬다.**
    그것을 결함으로 지적하면 *"그 작업이 만들라고 한 것을 만들지 말라"* 는 리뷰가 된다.
    완전성은 **예외 유형 카탈로그 커버리지**와 **권한 매트릭스 셀 커버리지**로 측정한다
@@ -136,19 +149,21 @@ ROLES = ("analyst", "writer", "reviewer", "sheet-analyst", "augmenter")
     "파생 케이스의 원천 — 기획서가 아닌 근거": ("writer", "reviewer", "augmenter"),
 ```
 
-이어서 `augmenter` 를 **`writer` 가 배정된 절 전부**에 추가한다 (파생 케이스도 같은 양식으로 쓴다). 단 아래 3개는 **제외**한다 — 이 절차에 해당 개념이 없다.
+이어서 `augmenter` 를 **`writer` 가 배정된 절 전부**에 추가한다 (파생 케이스도 같은 양식으로 쓴다). 단 아래 **2개만 제외**한다 — 이 절차에 해당 개념이 없다.
 
 | 제외할 절 | 이유 |
 |----------|------|
 | `"공통 DESC C-ID는 **공유 키**다 — 소진되는 번호가 아니다"` | 기획서 Description이 원천이 아니다 |
 | `"DESC 번호 두 체계 — 섞지 말고 분석서를 따른다"` | 동상 |
-| `"헤더 원문 (탭 문자 구분 — 빈 시트에 헤더 생성 시 그대로 사용)"` | **포함한다** (신규 탭 생성 시 필요) — 제외 대상이 아니다 |
+
+> `"헤더 원문 (탭 문자 구분 — 빈 시트에 헤더 생성 시 그대로 사용)"` 은 **반드시 포함한다** —
+> 신규 탭 생성 시 헤더를 기입해야 한다. 제외하지 마라.
 
 `CHANGE_ONLY` 집합은 **수정하지 않는다.** `--doc-type=추가` 는 `include_change` 가 `False` 가 되어 자동으로 제외된다 (`include_change = (doc_type == "변경") or has_change_exc`).
 
 - [ ] **Step 5: 절 배정 검사를 돌려 통과를 확인**
 
-Run: `python scripts/build_brief.py --coverage-check`
+Run: `python3 scripts/build_brief.py --coverage-check`
 Expected: `✅ 전 절 배정 완료 · 유령 배정 0건` + 종료 코드 `0`
 
 미배정이 나오면 새 절 제목이 `ROLE_SECTIONS` 키와 **글자 단위로** 일치하지 않는다는 뜻이다. `sections()` 가 `#{2,3} ` 만 떼므로 제목 원문(강조 기호·`—` 포함)을 그대로 키로 써야 한다.
@@ -157,21 +172,36 @@ Expected: `✅ 전 절 배정 완료 · 유령 배정 0건` + 종료 코드 `0`
 
 Run:
 ```bash
-python scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | head -40
-python scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | grep -c '^## '
-python scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | grep -c '변경분 모드'
+python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | head -40
+python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | grep -c '^## '
+python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | grep -c '변경분 모드'
 ```
 Expected: 머리말에 `원천 유형 \`추가\`` / `변경분 모드 절 포함 여부: **제외**` 가 보이고, 절 수가 20개 이상, `변경분 모드` 등장 0회.
 
 세 프로파일 모두 도는지도 확인한다.
 
-Run: `for p in viola trombone bootfactory; do python scripts/build_brief.py --role=augmenter --profile=$p --doc-type=추가 --out=- >/dev/null && echo "$p ok"; done`
+Run: `for p in viola trombone bootfactory; do python3 scripts/build_brief.py --role=augmenter --profile=$p --doc-type=추가 --out=- >/dev/null && echo "$p ok"; done`
 Expected: `viola ok` / `trombone ok` / `bootfactory ok`
 
 - [ ] **Step 7: 기존 역할의 브리핑이 깨지지 않았는지 회귀 확인**
 
-Run: `for r in analyst writer reviewer sheet-analyst; do for d in 신규 변경; do python scripts/build_brief.py --role=$r --profile=viola --doc-type=$d --out=- >/dev/null || echo "FAIL $r $d"; done; done; echo done`
+Run: `for r in analyst writer reviewer sheet-analyst; do for d in 신규 변경; do python3 scripts/build_brief.py --role=$r --profile=viola --doc-type=$d --out=- >/dev/null || echo "FAIL $r $d"; done; done; echo done`
 Expected: `FAIL` 출력 없이 `done`
+
+- [ ] **Step 7-1: `verify_sheet_rows.py` 의 사양 파서가 깨지지 않았는지 확인 (필수)**
+
+`common.md` 를 고쳤으므로 그 파일을 파싱하는 다른 스크립트가 깨졌을 수 있다. **이 확인을
+Task 10까지 미루면 9개 태스크 뒤에 원인을 찾게 된다.**
+
+Run: `python3 scripts/verify_sheet_rows.py --selftest | tail -3`
+Expected: `✅ 전 항목 통과 — 심어 둔 위반 17종 검출 + 오탐 0건` (변경 전 기준선과 동일)
+
+실패하면 태그표에 추가한 행이나 새 절이 그 스크립트의 정규식과 충돌한다는 뜻이다.
+**`verify_sheet_rows.py` 를 고치지 말고 `common.md` 쪽 표기를 기존 표의 형식에 맞춘다** —
+그 스크립트는 이 작업의 수정 대상이 아니다.
+
+Run: `bash scripts/verify_unit_migration.sh | tail -2`
+Expected: `PASS — 처리 단위 재편 검사 통과`
 
 - [ ] **Step 8: 커밋**
 
@@ -394,7 +424,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: selftest를 돌려 실패를 확인**
 
-Run: `python .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
+Run: `python3 .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
 Expected: `NameError: name 'spec_header' is not defined` 로 죽는다 (아직 구현이 없다).
 
 - [ ] **Step 3: 사양 파서 3개를 구현**
@@ -485,7 +515,7 @@ def profile_solutions(formats_dir: str) -> dict[str, str]:
 
 - [ ] **Step 4: selftest를 돌려 통과를 확인**
 
-Run: `python .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
+Run: `python3 .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
 Expected: `S1`~`S9` 전부 `ok` + `PASS — selftest 통과` + 종료 코드 `0`
 
 `S9` 가 실패하면 프로파일 중 하나의 `솔루션` 행 문구가 「단일값 고정」과 다르다는 뜻이다. 그 파일을 직접 열어 표기를 확인하고 **파서를 실제 표기에 맞춘다** (사양을 파서에 맞춰 고치지 않는다).
@@ -624,7 +654,7 @@ EOF
 
 - [ ] **Step 2: selftest를 돌려 실패를 확인**
 
-Run: `python .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
+Run: `python3 .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
 Expected: `S1`~`S9` 는 `ok`, 이어서 `NameError: name 'header_mismatch' is not defined`
 
 - [ ] **Step 3: 집계 함수 5개를 구현**
@@ -811,7 +841,7 @@ def exit_code(finds: list[dict]) -> int:
 
 - [ ] **Step 4: selftest를 돌려 통과를 확인**
 
-Run: `python .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
+Run: `python3 .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
 Expected: `S1`~`S30` 전부 `ok` + `PASS — selftest 통과` + 종료 코드 `0`
 
 **`S23`(정상 입력 오탐 0건)이 통과하는지 반드시 본다.** 검출 케이스만 확인하면 판정이 늘 참을 돌려줘도 통과한다.
@@ -881,7 +911,7 @@ EOF
 
 - [ ] **Step 2: selftest를 돌려 실패를 확인**
 
-Run: `python .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
+Run: `python3 .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
 Expected: `S30` 까지 `ok`, 이어서 `NameError: name 'read_tsv' is not defined`
 
 - [ ] **Step 3: 시트 I/O · TSV 입력 · 렌더 함수를 구현**
@@ -1151,7 +1181,7 @@ Task 2에서 넣은 `main()` 의 `print(__doc__)` / `return 3` 두 줄을 아래
 
 - [ ] **Step 5: selftest를 돌려 통과를 확인**
 
-Run: `python .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
+Run: `python3 .claude/skills/testcase-augment/scripts/read_tc_inventory.py --selftest`
 Expected: `S1`~`S33` 전부 `ok` + `PASS`
 
 - [ ] **Step 6: 심볼릭 링크를 만든다 (이 저장소의 스크립트 노출 관행)**
@@ -1160,7 +1190,7 @@ Run:
 ```bash
 ln -s ../.claude/skills/testcase-augment/scripts/read_tc_inventory.py scripts/read_tc_inventory.py
 ls -l scripts/read_tc_inventory.py
-python scripts/read_tc_inventory.py --selftest | tail -3
+python3 scripts/read_tc_inventory.py --selftest | tail -3
 ```
 Expected: 링크가 걸리고, 링크 경유 실행에서도 `PASS`
 
@@ -1193,7 +1223,7 @@ with open("/tmp/tcaug/rows.tsv", "w", encoding="utf-8") as f:
         f.write("\t".join(r) + "\n")
 print("fixture 작성 완료")
 EOF
-python scripts/read_tc_inventory.py --source-tsv=/tmp/tcaug/rows.tsv --out-dir=/tmp/tcaug/out
+python3 scripts/read_tc_inventory.py --source-tsv=/tmp/tcaug/rows.tsv --out-dir=/tmp/tcaug/out
 cat /tmp/tcaug/out/10_tc_inventory.md
 ```
 Expected:
@@ -1211,7 +1241,7 @@ Run:
 python3 -c "
 p='/tmp/tcaug/rows.tsv'; s=open(p,encoding='utf-8').read().split('\n')
 s[0]=s[0].replace('기능테스트 ID','기능테스트ID'); open('/tmp/tcaug/bad.tsv','w',encoding='utf-8').write('\n'.join(s))"
-python scripts/read_tc_inventory.py --source-tsv=/tmp/tcaug/bad.tsv --out-dir=/tmp/tcaug/bad; echo "exit=$?"
+python3 scripts/read_tc_inventory.py --source-tsv=/tmp/tcaug/bad.tsv --out-dir=/tmp/tcaug/bad; echo "exit=$?"
 ```
 Expected: `Critical  SRC_HEADER  원본 탭 헤더가 사양과 불일치 — 3번째 …` + `헤더 불일치로 집계를 건너뛰었다` + `exit=2`
 
@@ -1707,10 +1737,13 @@ model: sonnet
    `[기획 확인] … — 확정값 확인 필요` 를 남긴다. **예상 결과를 단정해 놓고 확인 불가를 적는
    자기모순을 만들지 않는다** — 실행자가 잘못된 PASS/FAIL을 낸다.
 
-4. **근거 태그를 비우지 않는다.**
+4. **파생 태그(근거 태그)를 비우지 않는다.**
    - 예외: `[예외 파생 {원본 기능테스트 ID}] {예외 유형명}`
    - 권한: `[권한 매트릭스 {역할}×{기능}] {권한값}`
    - **두 원천의 태그를 한 케이스에 섞지 않는다**
+   - 접두 목록의 단일 출처는 `common.md` 「파생 케이스의 원천」 코드블록이다. **이 파생 태그가
+     붙은 행은 다음 실행에서 원본으로 읽히지 않는다** — 태그를 빠뜨리면 그 행이 원본이 되어
+     파생의 파생이 생긴다
 
 5. **분포를 프로파일에 맞추려 하지 않는다.** 이 절차는 정의상 일부 구분만 만든다. 지배 구분을
    맞추려고 없는 케이스를 만들면 근거 없는 행이 된다. `12_cases_*.md` 에는 **실제 작성분을 센
@@ -1789,6 +1822,9 @@ model: sonnet
 - **한 기능 단위가 실패하면 그것만 실패로 보고**하고 나머지는 계속 진행한다
 - **정책·작업 유형이 섞인 배치는 진행하지 말고 보고한다** — 섞인 채 진행하면 절반이 반대
   기준으로 만들어진다
+- **첫 배치(`EX-B01` / `PM-B01`)는 기능 단위 1개로 온다.** 오케스트레이터가 그렇게 보장하며,
+  그 결과는 사용자 검토 게이트를 거친다 — 첫 배치에 여럿이 들어왔으면 진행하지 말고 보고한다.
+  문체·태그·enum 오류를 **전 행에 번지기 전에** 잡는 것이 그 게이트의 목적이다
 
 ## 하지 않는 것
 
@@ -2350,8 +2386,10 @@ Expected: `PASS — 처리 단위 재편 검사 통과`
 ```bash
 echo "── 회귀 가드: 추가 작업 절차의 안전장치 (2026-09-10) ─────"
 # 새 절차가 기존 품질 장치를 우회하지 않았는가.
+# `present` 는 열거한 **모든** 파일에 패턴이 있어야 통과한다 — 그 문구를 실제로
+# 담는 파일만 열거한다. 넓게 잡으면 통과시키려고 문구를 억지로 흩뿌리게 된다.
 present "원본 TC는 스크립트가 읽는다"   'read_tc_inventory' \
-                                               "${AUGMENT[@]}"
+                                               .claude/skills/testcase-augment/SKILL.md
 present "결정적 점검 재사용"            'verify_sheet_rows' \
                                                .claude/skills/testcase-augment/SKILL.md \
                                                .claude/skills/testcase-reviewer/references/augment-mode.md
@@ -2378,9 +2416,19 @@ present "케이스 본문 시트 단일출처"     '단일 출처' \
 present "엑셀 미지원 명시"              '엑셀' \
                                                .claude/skills/testcase-augment/SKILL.md \
                                                .claude/agents/tc-augmenter.md
+present "예외 카탈로그는 하한"          '상한이 아니라 하한' \
+                                               .claude/skills/testcase-generator/references/exception-catalog.md
+present "권한 규모 = 검증 지점 수"      '검증 지점' \
+                                               .claude/skills/testcase-generator/references/permission-mode.md \
+                                               .claude/skills/testcase-augment/SKILL.md
 absent  "추가 작업 문서에 열 문자 박기" '\bV열\b|\bW열\b|A1:W1' \
                                                "${AUGMENT[@]}"
 ```
+
+> **가드 하나를 추가할 때마다 「그 문구를 실제로 담는 파일이 어디인가」를 먼저 확인한다.**
+> `present` 는 열거한 모든 파일을 요구하므로, 담지 않는 파일을 끼우면 통과시키려고 문구를
+> 억지로 흩뿌리게 되고 문서가 망가진다. 반대로 `FAIL` 이 났을 때 **패턴을 느슨하게 바꾸면
+> 가드가 아무것도 지키지 않는다.**
 
 이어서 파일 상단의 배열 정의부(`DOCS=(...)` 다음 줄)에 아래를 추가한다.
 
@@ -2401,7 +2449,7 @@ CORE=("${CORE[@]}" "${AUGMENT[@]}")
 - [ ] **Step 3: 가드를 돌려 통과를 확인**
 
 Run: `bash scripts/verify_unit_migration.sh | tail -20`
-Expected: 새로 추가한 「추가 작업 절차의 안전장치」 10개 항목이 전부 `ok` + `PASS`
+Expected: 새로 추가한 「추가 작업 절차의 안전장치」 12개 항목이 전부 `ok` + `PASS`
 
 `FAIL` 이 나면 그 패턴이 없는 파일을 열어 **문구를 넣는다** (가드의 패턴을 느슨하게 바꾸지 않는다 — 그러면 가드가 아무것도 지키지 않는다).
 
@@ -2504,9 +2552,9 @@ Expected: 여섯 파일 모두 `testcase-augment` ≥ 1, `CLAUDE.md` 에 `2026-0
 Run:
 ```bash
 bash scripts/verify_unit_migration.sh | tail -3
-python scripts/build_brief.py --coverage-check | tail -3
-python scripts/read_tc_inventory.py --selftest | tail -3
-python scripts/verify_sheet_rows.py --selftest | tail -3
+python3 scripts/build_brief.py --coverage-check | tail -3
+python3 scripts/read_tc_inventory.py --selftest | tail -3
+python3 scripts/verify_sheet_rows.py --selftest | tail -3
 ```
 Expected: 네 개 모두 `PASS` / `✅` / 종료 코드 `0`
 
