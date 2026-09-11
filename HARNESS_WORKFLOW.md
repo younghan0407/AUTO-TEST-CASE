@@ -237,7 +237,8 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 `prd-analyst`·`sheet-analyst`·`testcase-writer` 를 호출하지 않는다.
 
 ```
-Phase 0  기본 정보 수집 — 작업 유형(예외/권한) · 원본 시트·탭 · 대상 시트·탭 · (권한) 자료 경로
+Phase 0  기본 정보 수집 — 작업 유형(예외/권한) · 원본 시트·탭 · 대상 시트·탭 ·
+            범위(화면 ID, 비우면 전체) · (권한) 자료 경로
             제품 유형은 묻지 않는다 (Phase 1 실측 판정)
    ↓
 Phase 1  read_tc_inventory.py  — 헤더 대조 · `솔루션` 실측 → 프로파일 · 기능 단위 · 커버리지 맵

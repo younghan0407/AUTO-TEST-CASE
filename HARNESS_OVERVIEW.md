@@ -200,6 +200,7 @@ testcase-auto/
 |------|------|
 | `--source-sheet` + `--source-tab` | 원본 (탭은 여러 번 지정 가능) |
 | `--source-tsv` | 로컬 TSV 입력 (시트 접근 없이 검증) |
+| `--scope` | 대상 화면 ID / 페이지 ID (쉼표 구분). 생략 시 전체. **집계는 전체로 하고 대상만 좁힌다** |
 | `--target-sheet` + `--target-tab` | 대상 탭 상태·번호 실측 (생략 가능) |
 | `--formats-dir` / `--out-dir` | 사양 디렉터리 / 산출물 디렉터리 |
 | `--selftest` | 자기검증 (사양을 고친 뒤 실행) |
