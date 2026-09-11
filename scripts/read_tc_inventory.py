@@ -1,0 +1,1 @@
+../.claude/skills/testcase-augment/scripts/read_tc_inventory.py
