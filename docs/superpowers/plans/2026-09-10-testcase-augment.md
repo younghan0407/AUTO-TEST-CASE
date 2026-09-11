@@ -85,7 +85,7 @@
 > 단일 출처다. 태그를 늘리거나 이름을 바꾸면 이 블록도 함께 고친다 — 고치지 않으면 그 태그가 붙은 행이
 > 원본으로 다시 읽혀 **파생의 파생**이 생긴다.
 
-### 규칙
+### 파생 케이스 작성 규칙
 
 1. **한 케이스에 두 원천의 태그를 섞지 않는다.** 역추적 대상이 갈린다
 2. **파생 태그가 붙은 행은 다음 실행에서 원본이 되지 않는다.** 원본 탭과 작성 대상 탭이 같을 수 있으므로
@@ -147,6 +147,7 @@ ROLES = ("analyst", "writer", "reviewer", "sheet-analyst", "augmenter")
 #     "파생 케이스의 원천 — 기획서가 아닌 근거" 를
 #     "변경 표기 경로의 위계 — 박스는 범위를 확정하지 않는다" 항목 **앞에** 넣는다.
     "파생 케이스의 원천 — 기획서가 아닌 근거": ("writer", "reviewer", "augmenter"),
+    "파생 케이스 작성 규칙": ("writer", "reviewer", "augmenter"),
 ```
 
 이어서 `augmenter` 를 **`writer` 가 배정된 절 전부**에 추가한다 (파생 케이스도 같은 양식으로 쓴다). 단 아래 **2개만 제외**한다 — 이 절차에 해당 개념이 없다.
@@ -176,7 +177,23 @@ python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추�
 python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | grep -c '^## '
 python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- | grep -c '변경분 모드'
 ```
-Expected: 머리말에 `원천 유형 \`추가\`` / `변경분 모드 절 포함 여부: **제외**` 가 보이고, 절 수가 20개 이상, `변경분 모드` 등장 0회.
+Expected: 머리말에 `원천 유형 \`추가\`` / `변경분 모드 절 포함 여부: **제외**` 가 보이고,
+`변경분 모드` 등장 **0회**, 그리고 **파생 규칙이 실제로 실려 있을 것**:
+
+```bash
+python3 scripts/build_brief.py --role=augmenter --profile=viola --doc-type=추가 --out=- \
+  | grep -c '파생 태그가 붙은 행은 다음 실행에서 원본이 되지 않는다'
+```
+Expected: `1` (0이면 절이 라우팅에서 탈락한 것이다 — 아래 「제목 충돌」 참조)
+
+> **절 개수를 기대값으로 쓰지 않는다.** 실측상 `augmenter` 는 16~18절이고 기존 `writer` +
+> `--doc-type=신규` 도 18절이다. 개수는 프로파일·모드마다 달라 회귀 신호가 되지 못한다.
+> **특정 규칙 문장이 실려 있는지**로 확인한다.
+
+> **⚠️ 제목 충돌 — `ROLE_SECTIONS`·`CHANGE_ONLY` 의 키는 절 제목 문자열 하나이며 전역이다.**
+> 부모 절이 달라도 제목이 같으면 같은 항목으로 취급된다. `CHANGE_ONLY` 에 이미
+> `"규칙"` 이 있으므로 **새 절의 소제목을 `규칙` 으로 지으면 `--doc-type=추가` 에서
+> 통째로 탈락한다.** 그래서 이 계획은 소제목을 `### 파생 케이스 작성 규칙` 으로 쓴다.
 
 세 프로파일 모두 도는지도 확인한다.
 
