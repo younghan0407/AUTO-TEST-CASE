@@ -291,6 +291,11 @@ def findings(inv: dict, src_header_issue: str | None,
         out.append({"level": CRITICAL, "code": "TGT_HEADER",
                     "msg": f"대상 탭 헤더가 사양과 불일치 — {tgt_header_issue}. "
                            "그냥 append하면 전 값이 밀린다"})
+    if src_header_issue:
+        # 헤더가 어긋나면 컬럼 위치를 신뢰할 수 없어 집계 자체가 비어 있다.
+        # 여기서 NO_SOURCE 를 함께 내면 "원본 탭이 비었다"로 읽혀 헤더 대신
+        # 엉뚱한 탭을 찾게 만든다 — 원인 하나만 보고한다.
+        return out
     if inv["source_rows"] == 0:
         out.append({"level": CRITICAL, "code": "NO_SOURCE",
                     "msg": "뒤집을 원본 케이스가 0건 — 전 행이 파생 태그 행이거나 빈 탭이다"})
@@ -306,6 +311,151 @@ def findings(inv: dict, src_header_issue: str | None,
 
 def exit_code(finds: list[dict]) -> int:
     return 2 if any(f["level"] == CRITICAL for f in finds) else 0
+
+
+# ─────────────────────────────────────────────── 입력 (시트 / TSV)
+
+def _find_sheets_api() -> str:
+    """`sheets_api.py` 가 있는 디렉터리를 찾는다.
+
+    이 파일은 루트 `scripts/` 에 심볼릭 링크로도 노출된다. `__file__` 은 호출
+    경로를 가리키므로 링크 경유와 원본 경유에서 상대 경로가 달라진다.
+    두 기점에서 위로 올라가며 실제 파일을 찾는다 (`verify_sheet_rows.py` 와 동일).
+    """
+    starts = {
+        os.path.dirname(os.path.abspath(__file__)),
+        os.path.dirname(os.path.realpath(__file__)),
+        os.getcwd(),
+    }
+    rels = (
+        ("sheets_api.py",),
+        ("scripts", "sheets_api.py"),
+        (".claude", "skills", "sheet-operator", "scripts", "sheets_api.py"),
+        ("..", "..", "sheet-operator", "scripts", "sheets_api.py"),
+    )
+    for start in starts:
+        cur = start
+        for _ in range(6):
+            for rel in rels:
+                cand = os.path.join(cur, *rel)
+                if os.path.isfile(cand):
+                    return os.path.dirname(os.path.abspath(cand))
+            parent = os.path.dirname(cur)
+            if parent == cur:
+                break
+            cur = parent
+    raise RuntimeError(
+        "sheets_api.py 를 찾지 못했다. 프로젝트 루트에서 실행하거나 --source-tsv 를 쓰십시오."
+    )
+
+
+def _sheets_client():
+    sys.path.insert(0, _find_sheets_api())
+    from sheets_api import SheetsClient  # type: ignore
+
+    return SheetsClient
+
+
+def load_tab(cli, sid: str, tab: str) -> tuple[list, list]:
+    """(헤더 행, 데이터 행). 탭명은 호출자가 `metadata` 의 `title` 을 그대로 넘긴다."""
+    head = cli.read(sid, f"'{tab}'!1:1")
+    head = head[0] if head else []
+    data = cli.read(sid, f"'{tab}'!2:100000")
+    return head, data
+
+
+def scan_tcids(cli, sid: str, header: list[str]) -> list[str]:
+    """스프레드시트 **전 탭**에서 `기능테스트 ID` 컬럼만 읽는다.
+
+    대상 탭의 마지막 값만 보면 다른 탭에 더 큰 값이 있을 때 중복이 난다
+    (VIOLA는 탭 경계를 무시하고 제품 전역 연속이다). 컬럼 하나만 읽으므로
+    전 탭을 훑어도 비용이 작다.
+    """
+    i = _idx(header, "기능테스트 ID")
+    if i >= 26:
+        raise RuntimeError(f"`기능테스트 ID` 열 위치가 Z를 넘는다: {i}")
+    col = chr(ord("A") + i)
+    out: list[str] = []
+    for s in cli.get_metadata(sid).get("sheets", []):
+        title = s.get("title")
+        if not title:
+            continue
+        try:
+            vals = cli.read(sid, f"'{title}'!{col}2:{col}100000")
+        except Exception:
+            continue                    # 보호된 탭 등은 건너뛴다 (최대값 실측은 최선 노력)
+        out += [str(r[0]).strip() for r in vals if r and str(r[0]).strip()]
+    return out
+
+
+def read_tsv(path: str) -> tuple[list[str], list[list[str]]]:
+    """헤더를 포함한 로컬 TSV. 시트 접근 없이 검증할 때 쓴다."""
+    lines = open(path, encoding="utf-8").read().split("\n")
+    rows = [ln.split("\t") for ln in lines if ln.strip()]
+    if not rows:
+        raise RuntimeError(f"{path}: 빈 파일")
+    return [c.strip() for c in rows[0]], rows[1:]
+
+
+# ─────────────────────────────────────────────── 산출물
+
+def render_md(inv: dict, meta: dict, finds: list[dict]) -> str:
+    """`10_tc_inventory.md` — 사람과 에이전트가 읽는 산출물.
+
+    **원본 케이스 전문(절차·예상 결과)을 담지 않는다.** 검증 목표 한 줄이면
+    뒤집기와 중복 판정에 충분하고, 전문을 담으면 원본 탭을 그대로 복사한 것이
+    되어 「에이전트에게 시트를 읽히지 않는다」는 목적이 사라진다.
+    """
+    L: list[str] = ["# 원본 TC 인벤토리", ""]
+    L.append(f"- 원본: {meta.get('source')}")
+    L.append(f"- 대상: {meta.get('target') or '(지정 없음 — 번호 실측 건너뜀)'}")
+    L.append(f"- 사양: {meta.get('formats_dir')}")
+    L.append(f"- 전체 {inv['total_rows']}행 / 원본 {inv['source_rows']}행 "
+             f"/ 파생 태그 행 제외 {inv['derived_rows']}행")
+    sol = ", ".join(f"`{k}` {v}행" for k, v in inv["solution_count"].items()) or "(없음)"
+    L.append(f"- `솔루션` 실측: {sol} → 프로파일 **{inv['profile'] or '판정 불가'}**")
+    for pre, e in sorted(inv["tcid_by_prefix"].items()):
+        L.append(f"- TC ID 접두 `{pre}` 최대 {e['max']} → 다음 **`{e['next']}`**")
+    L.append("")
+
+    L.append("## 판정")
+    L.append("")
+    if finds:
+        L.append("| 등급 | 코드 | 내용 |")
+        L.append("|------|------|------|")
+        for f in finds:
+            L.append(f"| {f['level']} | `{f['code']}` | {f['msg']} |")
+        if any(f["level"] == CRITICAL for f in finds):
+            L.append("")
+            L.append("> **Critical 이 있다. 케이스 작성에 착수하지 않는다** — "
+                     "사용자 확인이 먼저다.")
+    else:
+        L.append("판정 사항 없음 (Critical 0 / Major 0)")
+    L.append("")
+
+    L.append("## 기능 단위")
+    L.append("")
+    L.append("| 순번 | 화면 ID | 1 Depth | 2 Depth | 3 Depth | 원본 | 기존 구분 커버리지 | 출처 탭 |")
+    L.append("|------|---------|---------|---------|---------|------|-----------------|--------|")
+    for n, u in enumerate(inv["units"], 1):
+        cov = " / ".join(f"{k} {v}" for k, v in sorted(
+            u["coverage"].items(), key=lambda kv: -kv[1]) if k) or "-"
+        L.append(f"| {n:02d} | {u['screen_id']} | {u['d1']} | {u['d2']} | {u['d3']} "
+                 f"| {u['source_count']} | {cov} | {', '.join(u['tabs'])} |")
+    L.append("")
+
+    L.append("## 기능 단위별 원본 케이스 (검증 목표 한 줄 — 전문 아님)")
+    L.append("")
+    for n, u in enumerate(inv["units"], 1):
+        L.append(f"### {n:02d} · {u['screen_id']} / {u['d2']} / {u['d3']}")
+        L.append("")
+        if not u["cases"]:
+            L.append("- (원본 케이스 없음 — 전 행이 파생 태그 행이다)")
+        for c in u["cases"]:
+            L.append(f"- {c['tc_id']} [{c['category']} {c['priority']}] "
+                     f"절차: {c['step']} / 예상: {c['expected']}")
+        L.append("")
+    return "\n".join(L).rstrip() + "\n"
 
 
 # ─────────────────────────────────────────────── selftest
@@ -475,6 +625,31 @@ def selftest() -> int:
         check("S30 Major 만 있으면 종료 코드 0 (진행 가능)",
               exit_code(findings(inv_m, None, None)) == 0)
 
+        empty = {"total_rows": 0, "derived_rows": 0, "source_rows": 0,
+                 "solution_count": {}, "profile": None, "solution_note": "",
+                 "tcid_by_prefix": {}, "units": []}
+        f = findings(empty, "컬럼 수 22개 ≠ 사양 23개", None)
+        check("S34 원본 헤더 불일치면 집계 기반 판정을 내지 않는다",
+              [x["code"] for x in f] == ["SRC_HEADER"], f)
+
+        print("── TSV 입력 · 산출물 렌더 ────────────────────")
+        tsv = os.path.join(tmp, "rows.tsv")
+        with open(tsv, "w", encoding="utf-8") as fh:
+            fh.write("\t".join(hdr) + "\n")
+            for row in rows:
+                fh.write("\t".join(str(c) for c in row) + "\n")
+        th, trows = read_tsv(tsv)
+        nonblank = [r for r in rows if any(str(c).strip() for c in r)]
+        check("S31 TSV 헤더·행을 읽는다 (빈 줄은 걸러낸다)",
+              th == hdr and len(trows) == len(nonblank), (th, len(trows)))
+
+        md = render_md(inv, {"source": "탭A", "target": None,
+                             "formats_dir": fdir}, f0)
+        check("S32 산출물에 기능 단위 표와 케이스 요약이 있다",
+              "## 기능 단위" in md and "TC_F_004" in md, md[:200])
+        check("S33 산출물에 원본 전문을 담지 않는다 (한 줄 요약만)",
+              md.count("TC_F_001 예상 결과") == 1, md.count("TC_F_001 예상 결과"))
+
         print("── 실제 사양으로도 파싱된다 ─────────────────")
         real = os.path.join(".claude", "formats")
         if os.path.isdir(real):
@@ -515,8 +690,114 @@ def main(argv: list[str]) -> int:
     if opts.get("--selftest"):
         return selftest()
 
-    print(__doc__)
-    return 3
+    fdir = opts.get("--formats-dir") or os.path.join(".claude", "formats")
+    out_dir = opts.get("--out-dir") or os.path.join("_workspace", "augment")
+    if not isinstance(fdir, str) or not os.path.isdir(fdir):
+        print(f"오류: 사양 디렉터리가 없다: {fdir}", file=sys.stderr)
+        return 3
+
+    src_sheet = opts.get("--source-sheet")
+    src_tsv = opts.get("--source-tsv")
+    src_tabs = opts.get("--source-tab") or []
+    if not (isinstance(src_tsv, str) or (isinstance(src_sheet, str) and src_tabs)):
+        print("오류: --source-tsv 또는 (--source-sheet + --source-tab) 이 필요하다\n",
+              file=sys.stderr)
+        print(__doc__)
+        return 3
+
+    try:
+        spec = spec_header(fdir)
+        prefixes = derived_prefixes(fdir)
+        solutions = profile_solutions(fdir)
+    except (SpecParseError, OSError) as e:
+        print(f"오류(사양 파싱): {e}", file=sys.stderr)
+        return 3
+
+    tabs: list = []
+    src_issue = tgt_issue = None
+    all_tcids: list[str] = []
+    meta = {"formats_dir": fdir, "target": None}
+
+    try:
+        if isinstance(src_tsv, str):
+            head, rows = read_tsv(src_tsv)
+            src_issue = header_mismatch(head, spec)
+            tabs.append((os.path.basename(src_tsv), rows))
+            meta["source"] = f"{src_tsv} (로컬 TSV)"
+        else:
+            Client = _sheets_client()
+            cli = Client()
+            sid = Client.extract_id(src_sheet)
+            for tab in src_tabs:
+                head, rows = load_tab(cli, sid, tab)
+                issue = header_mismatch(head, spec)
+                if issue and not src_issue:
+                    src_issue = f"탭 `{tab}` — {issue}"
+                tabs.append((tab, rows))
+            meta["source"] = f"{src_sheet} / 탭 {', '.join(src_tabs)}"
+            all_tcids += scan_tcids(cli, sid, spec)
+
+            tgt_sheet, tgt_tab = opts.get("--target-sheet"), opts.get("--target-tab")
+            if isinstance(tgt_sheet, str) and isinstance(tgt_tab, str):
+                tsid = Client.extract_id(tgt_sheet)
+                titles = [s.get("title") for s in cli.get_metadata(tsid).get("sheets", [])]
+                meta["target"] = f"{tgt_sheet} / 탭 {tgt_tab}"
+                if tgt_tab in titles:
+                    thead, trows = load_tab(cli, tsid, tgt_tab)
+                    if any(str(c).strip() for c in thead):
+                        tgt_issue = header_mismatch(thead, spec)
+                    meta["target"] += f" (기존 {len(trows)}행)"
+                else:
+                    meta["target"] += " (미존재 — Phase 2에서 생성)"
+                if tsid != sid:
+                    all_tcids += scan_tcids(cli, tsid, spec)
+    except SpecParseError as e:
+        print(f"오류(사양 파싱): {e}", file=sys.stderr)
+        return 3
+    except Exception as e:
+        print(f"오류(입력 읽기): {e}", file=sys.stderr)
+        return 3
+
+    # 헤더가 사양과 다르면 컬럼 위치를 신뢰할 수 없다 — 집계하지 않고 보고만 한다.
+    if src_issue:
+        empty = {"total_rows": 0, "derived_rows": 0, "source_rows": 0,
+                 "solution_count": {}, "profile": None, "solution_note": "",
+                 "tcid_by_prefix": {}, "units": []}
+        finds = findings(empty, src_issue, tgt_issue)
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, "10_tc_inventory.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(render_md(empty, meta, finds))
+        for fd in finds:
+            print(f"{fd['level']}  {fd['code']}  {fd['msg']}")
+        print(f"\n{path} 생성 — 헤더 불일치로 집계를 건너뛰었다")
+        return 2
+
+    inv = build_inventory(spec, tabs, prefixes, solutions)
+    # 시트 전 탭 실측이 있으면 그 값을 합쳐 다음 번호를 다시 낸다
+    if all_tcids:
+        merged = tcid_max_by_prefix(
+            all_tcids + [c["tc_id"] for u in inv["units"] for c in u["cases"]])
+        inv["tcid_by_prefix"] = merged
+
+    finds = findings(inv, src_issue, tgt_issue)
+
+    os.makedirs(out_dir, exist_ok=True)
+    md_path = os.path.join(out_dir, "10_tc_inventory.md")
+    js_path = os.path.join(out_dir, "10_tc_inventory.json")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(render_md(inv, meta, finds))
+    with open(js_path, "w", encoding="utf-8") as f:
+        json.dump({"meta": meta, "inventory": inv, "findings": finds},
+                  f, ensure_ascii=False, indent=2)
+
+    for fd in finds:
+        print(f"{fd['level']}  {fd['code']}  {fd['msg']}")
+    print(f"\n{md_path} / {js_path} 생성")
+    print(f"기능 단위 {len(inv['units'])}개 · 원본 {inv['source_rows']}행 "
+          f"· 파생 태그 행 제외 {inv['derived_rows']}행 "
+          f"· 프로파일 {inv['profile'] or '판정 불가'}")
+    return exit_code(finds)
 
 
 if __name__ == "__main__":
