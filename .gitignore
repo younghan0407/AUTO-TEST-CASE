@@ -31,3 +31,6 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# superpowers 작업 트리 (임베디드 git 저장소 — 커밋 대상 아님)
+.claude/worktrees/
