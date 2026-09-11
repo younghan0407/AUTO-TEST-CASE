@@ -183,6 +183,21 @@ present "권한 규모 = 검증 지점 수"      '검증 지점' \
                                                .claude/skills/testcase-augment/SKILL.md
 absent  "추가 작업 문서에 열 문자 박기" '\bV열\b|\bW열\b|A1:W1' \
                                                "${AUGMENT[@]}"
+present "범위는 화면 ID 목록"          '범위' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/agents/tc-augmenter.md \
+                                               .claude/skills/testcase-generator/references/exception-catalog.md \
+                                               .claude/skills/testcase-reviewer/references/augment-mode.md
+present "범위 필터는 스크립트가 한다"    'screen-id' \
+                                               .claude/skills/testcase-augment/SKILL.md
+present "범위 밖 TC ID도 번호에 센다"    '번호 실측' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/skills/testcase-augment/scripts/read_tc_inventory.py
+present "범위 오타는 Critical"           'SCOPE_NO_MATCH' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/skills/testcase-augment/scripts/read_tc_inventory.py
+present "작업 유형은 한 실행에 하나"     '한 실행에 한 유형|하나만' \
+                                               .claude/skills/testcase-augment/SKILL.md
 
 echo "── CLI 명령 오표기 가드 ───────────────────────────────────"
 absent "get_metadata 셸 명령 표기" 'sheets_api\.py get_metadata' "${CORE[@]}" "${DOCS[@]}"
