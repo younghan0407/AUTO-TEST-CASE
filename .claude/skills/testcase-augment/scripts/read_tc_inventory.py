@@ -14,11 +14,13 @@
 CLI 사용:
   python read_tc_inventory.py --source-sheet=<ID|URL> --source-tab='03_파드' \\
       --target-sheet=<ID|URL> --target-tab='03_파드_예외' \\
-      --out-dir=_workspace/augment
+      --screen-id='VIOE-03_01_01-01' --out-dir=_workspace/augment
   python read_tc_inventory.py --source-tsv=rows.tsv --out-dir=_workspace/augment
   python read_tc_inventory.py --selftest
 
   --source-tab: 여러 번 지정 가능 (탭마다 읽고 합산한다)
+  --screen-id: 범위 — 이 `화면 ID` 의 행만 원천으로 쓴다. 여러 번 지정 가능.
+               생략하면 전수. 원본에 없는 값을 주면 Critical (오타 감지)
   --source-tsv: 로컬 TSV(헤더 포함) 입력 — 시트 접근 없이 검증할 때
   --target-sheet / --target-tab: 생략 가능 (생략 시 대상 탭 실측을 건너뛴다)
   --formats-dir: 사양 디렉터리 (기본 `.claude/formats`)
@@ -189,13 +191,21 @@ def _one_line(s: str, limit: int = 60) -> str:
 
 
 def build_inventory(header: list[str], tabs: list, prefixes: list[str],
-                    solutions: dict[str, str]) -> dict:
+                    solutions: dict[str, str],
+                    screen_ids: list[str] | None = None) -> dict:
     """기능 단위 인벤토리 + 기존 커버리지 맵.
 
     `tabs`: `[(탭명, [데이터 행, …]), …]` — 헤더 행은 제외하고 넘긴다.
 
     기능 단위 키는 **`화면 ID` + `2 Depth` + `3 Depth`** 다. 시트에서 케이스를
     식별하는 축이 그 셋이므로, 파생 케이스가 어느 원본에 붙는지 이 키로 정해진다.
+
+    `screen_ids`: 범위(Phase 0 입력). 주면 그 `화면 ID` 의 행만 원천으로 쓴다.
+    `None` 또는 빈 목록이면 전수다.
+
+    ⚠️ **범위 밖 행의 `기능테스트 ID` 도 번호 실측에는 센다.** 범위는 *무엇을
+    뒤집을지*를 정하는 것이고 TC ID는 탭 전역에서 유일해야 하므로, 빼면 다음
+    번호가 이미 쓰인 값과 겹친다.
     """
     i_sol = _idx(header, "솔루션")
     i_tc = _idx(header, "기능테스트 ID")
@@ -212,21 +222,33 @@ def build_inventory(header: list[str], tabs: list, prefixes: list[str],
     units: dict[tuple, dict] = {}
     sol_count: dict[str, int] = {}
     all_tcids: list[str] = []
-    total = derived = 0
+    total = derived = filtered_out = 0
+    want = [x for x in (screen_ids or []) if str(x).strip()]
+    seen_screens: list[str] = []
 
     for tab, rows in tabs:
         for row in rows:
             if not any(str(c).strip() for c in row):
                 continue                                    # 빈 행은 세지 않는다
-            total += 1
-            sol = _cell(row, i_sol)
-            if sol:
-                sol_count[sol] = sol_count.get(sol, 0) + 1
+
+            # TC ID 는 범위와 무관하게 전부 센다 — 번호는 탭 전역에서 유일해야 한다
             tcid = _cell(row, i_tc)
             if tcid:
                 all_tcids.append(tcid)
 
-            key = (_cell(row, i_scr), _cell(row, i_d2), _cell(row, i_d3))
+            scr = _cell(row, i_scr)
+            if scr and scr not in seen_screens:
+                seen_screens.append(scr)
+            if want and scr not in want:
+                filtered_out += 1
+                continue                          # 범위 밖 — 원천으로 쓰지 않는다
+
+            total += 1
+            sol = _cell(row, i_sol)
+            if sol:
+                sol_count[sol] = sol_count.get(sol, 0) + 1
+
+            key = (scr, _cell(row, i_d2), _cell(row, i_d3))
             u = units.setdefault(key, {
                 "screen_id": key[0],
                 "d1": _cell(row, i_d1),
@@ -267,7 +289,14 @@ def build_inventory(header: list[str], tabs: list, prefixes: list[str],
             )
             note = f"한 원본에 솔루션값 혼재 — {listed} → 최다값 `{top}` 사용"
 
+    matched = [x for x in want if x in seen_screens]
     return {
+        "scope": {
+            "requested": want,
+            "matched": matched,
+            "missing": [x for x in want if x not in seen_screens],
+            "filtered_out": filtered_out,
+        },
         "total_rows": total,
         "derived_rows": derived,
         "source_rows": total - derived,
@@ -291,6 +320,12 @@ def findings(inv: dict, src_header_issue: str | None,
         out.append({"level": CRITICAL, "code": "TGT_HEADER",
                     "msg": f"대상 탭 헤더가 사양과 불일치 — {tgt_header_issue}. "
                            "그냥 append하면 전 값이 밀린다"})
+    miss = inv.get("scope", {}).get("missing") or []
+    if miss:
+        listed = ", ".join(f"`{x}`" for x in miss)
+        out.append({"level": CRITICAL, "code": "SCOPE_NO_MATCH",
+                    "msg": f"범위로 지정한 화면 ID {listed} 가 원본에 없다 — "
+                           "오타이거나 다른 탭에 있다. 조용히 0건을 내지 않는다"})
     if inv["source_rows"] == 0:
         out.append({"level": CRITICAL, "code": "NO_SOURCE",
                     "msg": "뒤집을 원본 케이스가 0건 — 전 행이 파생 태그 행이거나 빈 탭이다"})
@@ -405,6 +440,15 @@ def render_md(inv: dict, meta: dict, finds: list[dict]) -> str:
     L.append(f"- 원본: {meta.get('source')}")
     L.append(f"- 대상: {meta.get('target') or '(지정 없음 — 번호 실측 건너뜀)'}")
     L.append(f"- 사양: {meta.get('formats_dir')}")
+    sc = inv.get("scope") or {}
+    if sc.get("requested"):
+        L.append("- 범위: 화면 ID " + ", ".join(f"`{x}`" for x in sc["requested"])
+                 + f" (범위 밖 {sc.get('filtered_out', 0)}행 제외)")
+        if sc.get("missing"):
+            L.append("  - ⚠️ 원본에 없는 화면 ID: "
+                     + ", ".join(f"`{x}`" for x in sc["missing"]))
+    else:
+        L.append("- 범위: 전수 (화면 ID 지정 없음)")
     L.append(f"- 전체 {inv['total_rows']}행 / 원본 {inv['source_rows']}행 "
              f"/ 파생 태그 행 제외 {inv['derived_rows']}행")
     sol = ", ".join(f"`{k}` {v}행" for k, v in inv["solution_count"].items()) or "(없음)"
@@ -620,6 +664,35 @@ def selftest() -> int:
         check("S30 Major 만 있으면 종료 코드 0 (진행 가능)",
               exit_code(findings(inv_m, None, None)) == 0)
 
+        print("── 범위 (화면 ID 목록) ───────────────────────")
+        inv_all = build_inventory(hdr, [("탭A", rows)], p, s, None)
+        check("S34 범위 미지정이면 전수 (기존 동작 유지)",
+              len(inv_all["units"]) == 2 and inv_all["scope"]["requested"] == [],
+              (len(inv_all["units"]), inv_all["scope"]))
+
+        inv_s = build_inventory(hdr, [("탭A", rows)], p, s, ["SC-02"])
+        check("S35 지정한 화면 ID만 남는다",
+              [u["screen_id"] for u in inv_s["units"]] == ["SC-02"],
+              [u["screen_id"] for u in inv_s["units"]])
+        check("S36 범위 밖 행 수를 따로 센다",
+              (inv_s["total_rows"], inv_s["scope"]["filtered_out"]) == (1, 4),
+              (inv_s["total_rows"], inv_s["scope"]["filtered_out"]))
+        # 범위 밖 행의 TC ID를 빼면 다음 번호가 이미 쓰인 값과 겹친다.
+        check("S37 범위 밖 행의 TC ID도 번호 실측에 센다",
+              inv_s["tcid_by_prefix"]["TC_F_"]["next"] == "TC_F_006",
+              inv_s["tcid_by_prefix"].get("TC_F_"))
+        check("S38 매칭된 화면 ID를 보고한다",
+              inv_s["scope"]["matched"] == ["SC-02"], inv_s["scope"])
+
+        inv_t = build_inventory(hdr, [("탭A", rows)], p, s, ["SC-01", "SC-99"])
+        check("S39 원본에 없는 화면 ID를 찾아낸다 (오타 감지)",
+              inv_t["scope"]["missing"] == ["SC-99"], inv_t["scope"])
+        f = findings(inv_t, None, None)
+        check("S40 미매칭 화면 ID는 Critical",
+              any(x["code"] == "SCOPE_NO_MATCH" and x["level"] == CRITICAL for x in f), f)
+        check("S41 범위 지정이 정상 매칭이면 오탐 0건",
+              findings(inv_s, None, None) == [], findings(inv_s, None, None))
+
         print("── TSV 입력 · 산출물 렌더 ────────────────────")
         tsv = os.path.join(tmp, "rows.tsv")
         with open(tsv, "w", encoding="utf-8") as fh:
@@ -666,6 +739,7 @@ def selftest() -> int:
 def main(argv: list[str]) -> int:
     opts: dict = {}
     tabs: list[str] = []
+    screens: list[str] = []
     for a in argv[1:]:
         if not a.startswith("--"):
             print(f"오류: 위치 인자를 받지 않는다: {a}", file=sys.stderr)
@@ -673,9 +747,12 @@ def main(argv: list[str]) -> int:
         k, _, v = a.partition("=")
         if k == "--source-tab":
             tabs.append(v)
+        elif k == "--screen-id":
+            screens.append(v)
         else:
             opts[k] = v or True
     opts["--source-tab"] = tabs
+    opts["--screen-id"] = screens
 
     if opts.get("--selftest"):
         return selftest()
@@ -752,7 +829,9 @@ def main(argv: list[str]) -> int:
     if src_issue:
         empty = {"total_rows": 0, "derived_rows": 0, "source_rows": 0,
                  "solution_count": {}, "profile": None, "solution_note": "",
-                 "tcid_by_prefix": {}, "units": []}
+                 "tcid_by_prefix": {}, "units": [],
+                 "scope": {"requested": [], "matched": [], "missing": [],
+                           "filtered_out": 0}}
         finds = findings(empty, src_issue, tgt_issue)
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, "10_tc_inventory.md")
@@ -763,7 +842,8 @@ def main(argv: list[str]) -> int:
         print(f"\n{path} 생성 — 헤더 불일치로 집계를 건너뛰었다")
         return 2
 
-    inv = build_inventory(spec, tabs, prefixes, solutions)
+    inv = build_inventory(spec, tabs, prefixes, solutions,
+                          opts.get("--screen-id") or None)
     # 시트 전 탭 실측이 있으면 그 값을 합쳐 다음 번호를 다시 낸다
     if all_tcids:
         merged = tcid_max_by_prefix(
@@ -784,6 +864,11 @@ def main(argv: list[str]) -> int:
     for fd in finds:
         print(f"{fd['level']}  {fd['code']}  {fd['msg']}")
     print(f"\n{md_path} / {js_path} 생성")
+    sc = inv.get("scope") or {}
+    if sc.get("requested"):
+        print(f"범위: 화면 ID {len(sc['requested'])}개 지정 "
+              f"· 매칭 {len(sc.get('matched') or [])}개 "
+              f"· 범위 밖 {sc.get('filtered_out', 0)}행 제외")
     print(f"기능 단위 {len(inv['units'])}개 · 원본 {inv['source_rows']}행 "
           f"· 파생 태그 행 제외 {inv['derived_rows']}행 "
           f"· 프로파일 {inv['profile'] or '판정 불가'}")

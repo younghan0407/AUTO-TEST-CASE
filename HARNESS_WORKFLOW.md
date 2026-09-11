@@ -238,8 +238,8 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 
 | Phase | 하는 일 | 게이트 |
 |-------|--------|--------|
-| **0 기본 정보** | 작업 유형(`예외 사항`/`권한`, 복수 가능) · 원본 TC 시트·탭 · 작성 대상 시트·탭 · (권한) 권한 자료 경로. **제품 유형·기획서는 묻지 않는다** | 확정값 요약 표 |
-| **1-A 인벤토리** | `read_tc_inventory.py` 가 원본 탭을 읽어 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호를 낸다. **에이전트 호출 0** | 종료 코드 `2`(Critical)면 중단 |
+| **0 기본 정보** | 작업 유형(`예외 사항`/`권한` **중 하나**) · 원본 TC 시트·탭 · **(예외) 범위 = `화면 ID` 목록** · (권한) 권한 자료 경로 · 작성 대상 시트·탭. **제품 유형·기획서는 묻지 않는다** | 확정값 요약 표 |
+| **1-A 인벤토리** | `read_tc_inventory.py` 가 원본 탭을 읽어 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호를 낸다. **범위는 `--screen-id` 로 스크립트가 거른다.** 에이전트 호출 0 | 종료 코드 `2`(Critical)면 중단 — 헤더 불일치·`SCOPE_NO_MATCH` 포함 |
 | **1-B 권한 판독** (`권한`만) | 권한 자료 → `11_permission_matrix.md`(역할×기능 권한값 + **기능 ↔ 원본 TC 대응표**) | ◆ **사용자 확인** |
 | **1-C 규모** | 기능 단위별 예상 케이스 수 · 배치 계획 · **제외 항목** | ◆ **사용자 확인** |
 | **1-D 브리핑** | `build_brief.py --role={augmenter\|reviewer} --doc-type=추가` (루프 전 1회) | — |
@@ -250,6 +250,11 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 **이 흐름에서만 다른 것**
 
 - **제품 유형을 묻지 않는다** — 원본 TC의 `솔루션` 컬럼 **실측**으로 판정한다. 추정이 아니므로 「추정 금지」와 충돌하지 않는다
+- **범위(`화면 ID` 목록)는 예외 모드 전용이고 필수로 묻는다.** 권한은 매트릭스의 역할 × 기능 전수가 범위다.
+  필터를 스크립트에 맡기는 이유는 **범위 밖 행의 TC ID도 번호 실측에는 세야** 하기 때문이다 — 빼면
+  다음 번호가 이미 쓰인 값과 겹친다(실측: 범위를 화면 1개로 좁혀 원본 1행만 남았는데도 다음 번호가
+  `TC_VIO_010`). 원본에 없는 화면 ID는 오타로 보고 **Critical 로 멈춘다** — 조용한 0건은 "만들 게
+  없다"와 구별되지 않는다
 - **분포 편차 점검을 적용하지 않는다** — 예외 파생은 `비정상`·`엣지` 만, 권한 파생은 `정상`·`부수` 만 만들어
   어느 프로파일로 채점해도 지배 구분 역전이 반드시 뜬다. 완전성은 **예외 카탈로그 커버리지 / 매트릭스 셀 커버리지**로 본다
 - **파생 태그(`[예외 파생 …]`·`[권한 매트릭스 …]`)가 붙은 행은 다음 실행에서 원본이 되지 않는다** —
@@ -469,7 +474,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 |---------|----------------------|
 | `sheets_api.py` | **CLI는 `metadata` / `read` / `write` / `append` / `add_tab` 5개** (서비스 계정). `share`·`batch_update`·`create_spreadsheet`는 Python 전용 |
 | `verify_sheet_rows.py` | `--profile=` `--sheet=` `--tab=` `--rows=` `--tsv=` `--json=` `--selftest` `--diff` — **결정적 양식 점검 + 로컬↔시트 전 셀 대조**. 규칙은 사양에서 파싱(하드코딩 폴백 없음, 실패 시 exit 3) |
-| `read_tc_inventory.py` | `--source-sheet=` `--source-tab=`(복수) `--target-sheet=` `--target-tab=` `--source-tsv=` `--out-dir=` `--selftest` — **추가 작업의 원본 TC 인벤토리**. 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호(전 탭 최대값). 파생 태그 행은 원본에서 제외. 규칙은 사양에서 파싱(실패 시 exit 3), 헤더 불일치는 집계 없이 exit 2 |
+| `read_tc_inventory.py` | `--source-sheet=` `--source-tab=`(복수) `--screen-id=`(복수·범위) `--target-sheet=` `--target-tab=` `--source-tsv=` `--out-dir=` `--selftest` — **추가 작업의 원본 TC 인벤토리**. 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호(전 탭 최대값). 파생 태그 행은 원본에서 제외. 규칙은 사양에서 파싱(실패 시 exit 3), 헤더 불일치는 집계 없이 exit 2 |
 | `build_brief.py` | `--role=` `--profile=` `--doc-type=` `--index=` `--phase0=` `--has-change-exception` `--out=` `--coverage-check` — **역할별 브리핑(사양 절 원문 발췌)**. 미배정 절은 exit 3 |
 | `oauth_sheet.py` | `create` (OAuth2 시트 생성 + 공유) |
 | `pdf_to_images.py` | `--dpi=` `--crop-desc` `--output-dir=` `--pages=START-END` **`--tile=auto\|N` `--tile-overlap=`** |
