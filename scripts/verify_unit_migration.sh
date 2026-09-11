@@ -19,7 +19,13 @@ AGENTS=(.claude/agents/prd-analyst.md
         .claude/agents/sheet-analyst.md)
 FORMATS=(.claude/formats/common.md)
 DOCS=(README.md HARNESS_OVERVIEW.md HARNESS_WORKFLOW.md docs/PROMPTS.md)
+AUGMENT=(.claude/skills/testcase-augment/SKILL.md
+         .claude/agents/tc-augmenter.md
+         .claude/skills/testcase-generator/references/exception-catalog.md
+         .claude/skills/testcase-generator/references/permission-mode.md
+         .claude/skills/testcase-reviewer/references/augment-mode.md)
 CORE=("${SKILLS[@]}" "${AGENTS[@]}" "${FORMATS[@]}")
+CORE=("${CORE[@]}" "${AUGMENT[@]}")
 
 fail=0
 
@@ -137,6 +143,46 @@ present "첫 배치는 단독"         '첫 배치|B01' .claude/skills/testcase-
 present "케이스 본문 시트 단일출처" '03_rows_s|단일 출처' \
                                                .claude/skills/testcase-generator/SKILL.md \
                                                .claude/skills/testcase-reviewer/SKILL.md
+
+echo "── 회귀 가드: 추가 작업 절차의 안전장치 (2026-09-10) ─────"
+# 새 절차가 기존 품질 장치를 우회하지 않았는가.
+# `present` 는 열거한 **모든** 파일에 패턴이 있어야 통과한다 — 그 문구를 실제로
+# 담는 파일만 열거한다. 넓게 잡으면 통과시키려고 문구를 억지로 흩뿌리게 된다.
+present "원본 TC는 스크립트가 읽는다"   'read_tc_inventory' \
+                                               .claude/skills/testcase-augment/SKILL.md
+present "결정적 점검 재사용"            'verify_sheet_rows' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/skills/testcase-reviewer/references/augment-mode.md
+present "분포 편차 점검 제외"           '분포 편차' \
+                                               .claude/formats/common.md \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/skills/testcase-reviewer/SKILL.md \
+                                               .claude/skills/testcase-reviewer/references/augment-mode.md
+present "파생 태그 행은 원본 제외"      '파생 태그' \
+                                               .claude/formats/common.md \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/agents/tc-augmenter.md
+present "파생 태그 접두 파싱 블록"      '파생 태그 접두 \(스크립트 파싱 대상\)' \
+                                               .claude/formats/common.md
+present "첫 배치는 단독"                '첫 배치' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/agents/tc-augmenter.md
+present "리턴 20줄 제한"                '리턴은 20줄|리턴 규약' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/agents/tc-augmenter.md
+present "케이스 본문 시트 단일출처"     '단일 출처' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/agents/tc-augmenter.md
+present "엑셀 미지원 명시"              '엑셀' \
+                                               .claude/skills/testcase-augment/SKILL.md \
+                                               .claude/agents/tc-augmenter.md
+present "예외 카탈로그는 하한"          '상한이 아니라 하한' \
+                                               .claude/skills/testcase-generator/references/exception-catalog.md
+present "권한 규모 = 검증 지점 수"      '검증 지점' \
+                                               .claude/skills/testcase-generator/references/permission-mode.md \
+                                               .claude/skills/testcase-augment/SKILL.md
+absent  "추가 작업 문서에 열 문자 박기" '\bV열\b|\bW열\b|A1:W1' \
+                                               "${AUGMENT[@]}"
 
 echo "── CLI 명령 오표기 가드 ───────────────────────────────────"
 absent "get_metadata 셸 명령 표기" 'sheets_api\.py get_metadata' "${CORE[@]}" "${DOCS[@]}"

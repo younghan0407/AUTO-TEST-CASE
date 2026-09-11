@@ -17,9 +17,12 @@ CLI 사용:
   python build_brief.py --coverage-check        # 절 배정 누락 검사 (사양 수정 후 필수)
   python build_brief.py --role=writer --profile=trombone --doc-type=신규 --out=-
 
-  --role: analyst | writer | reviewer | sheet-analyst
+  --role: analyst | writer | reviewer | sheet-analyst | augmenter
   --profile: viola | trombone | bootfactory
-  --doc-type: 신규 | 변경   (`신규` + 예외 없음이면 변경분 모드 절을 제외한다)
+  --doc-type: 신규 | 변경 | 추가
+              `신규` + 예외 없음 / `추가` 는 변경분 모드 절을 제외한다.
+              `추가` 는 기획서가 아니라 기존 테스트 케이스를 원천으로 삼는
+              `testcase-augment` 절차용이다.
   --has-change-exception: 문서 기본이 `신규` 라도 변경 정책 화면이 있으면 지정
   --index: 화면 인덱스 경로. **`--role=analyst` 일 때만** 슬림판(ID·페이지·간지·정책·CH-ID)을
            함께 넣는다. writer·reviewer 는 담당 화면 분석서로 작업하므로 인덱스가 필요 없다
@@ -40,7 +43,7 @@ import os
 import re
 import sys
 
-ROLES = ("analyst", "writer", "reviewer", "sheet-analyst")
+ROLES = ("analyst", "writer", "reviewer", "sheet-analyst", "augmenter")
 
 # 변경분 모드에서만 필요한 절 — `신규` + 예외 없음이면 제외한다
 CHANGE_ONLY = {
@@ -59,86 +62,94 @@ CHANGE_ONLY = {
 
 # 절 제목(원문) → 그 절이 필요한 역할
 # 제목은 `#` 과 번호를 뗀 원문이며, 사양 파일의 표기를 그대로 쓴다.
+#
+# ⚠️ 이 dict의 키는 절 제목 문자열 하나이며 **전역**이다. `규칙`·`메타`·`예시` 같은
+# 흔한 하위 절 제목은 서로 다른 상위 절 밑에서도 같은 키로 충돌한다 — 그리고 그 제목이
+# `CHANGE_ONLY` 에도 있으면 `include_change` 가 False 인 모든 브리핑에서 **조용히 빠진다**
+# (어느 상위 절 소속인지는 검사하지 않는다). 새 절을 추가할 때는 겹치지 않는 고유한
+# 하위 절 제목을 쓴다.
 ROLE_SECTIONS: dict[str, tuple[str, ...]] = {
     # ── common.md
     "메타": ROLES,
     "권위 규칙 — 사양과 대상 시트가 충돌할 때": ROLES,
     "이 사양이 낡았는지 알아내는 능력의 한계": ("reviewer", "sheet-analyst"),
-    "컬럼 구조 (A~W, 23컬럼) — 전 제품 공통": ("writer", "reviewer", "sheet-analyst"),
-    "헤더 원문 (탭 문자 구분 — 빈 시트에 헤더 생성 시 그대로 사용)": ("writer", "sheet-analyst"),
-    "폐지된 `관리대상` 컬럼 (2026-09-02)": ("writer", "reviewer", "sheet-analyst"),
-    "enum — 공통": ("writer", "reviewer", "sheet-analyst"),
-    "우선순위 (G) — 4종": ("writer", "reviewer", "sheet-analyst"),
-    "구분 (H) — 6종": ("writer", "reviewer", "sheet-analyst"),
-    "3 Depth (K)": ("writer", "reviewer", "sheet-analyst"),
-    "실제 결과 (R)": ("writer", "reviewer", "sheet-analyst"),
-    "검증 단위 — atomic (전 제품 확정)": ("writer", "reviewer"),
-    "표기 컨벤션 — 공통": ("writer", "reviewer"),
-    "절차 번호 접두": ("writer", "reviewer"),
-    "예상 결과 어조와 `ㄴ`": ("writer", "reviewer"),
-    "UI 라벨 표기 — **프로파일마다 정반대다**": ("writer", "reviewer"),
-    "`-` (No data) vs 빈칸 — 가장 자주 틀리는 구분": ("writer", "reviewer", "sheet-analyst"),
-    "일시·날짜 형식": ("writer", "reviewer"),
+    "컬럼 구조 (A~W, 23컬럼) — 전 제품 공통": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "헤더 원문 (탭 문자 구분 — 빈 시트에 헤더 생성 시 그대로 사용)": ("writer", "sheet-analyst", "augmenter"),
+    "폐지된 `관리대상` 컬럼 (2026-09-02)": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "enum — 공통": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "우선순위 (G) — 4종": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "구분 (H) — 6종": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "3 Depth (K)": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "실제 결과 (R)": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "검증 단위 — atomic (전 제품 확정)": ("writer", "reviewer", "augmenter"),
+    "표기 컨벤션 — 공통": ("writer", "reviewer", "augmenter"),
+    "절차 번호 접두": ("writer", "reviewer", "augmenter"),
+    "예상 결과 어조와 `ㄴ`": ("writer", "reviewer", "augmenter"),
+    "UI 라벨 표기 — **프로파일마다 정반대다**": ("writer", "reviewer", "augmenter"),
+    "`-` (No data) vs 빈칸 — 가장 자주 틀리는 구분": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "일시·날짜 형식": ("writer", "reviewer", "augmenter"),
     "화면 ID — 공통 원칙": ROLES,
-    "팝업 처리 — 공통": ("analyst", "writer", "reviewer"),
-    "비고(V) / 피드백(W) — 역할 분리": ("analyst", "writer", "reviewer"),
-    "비고 = 근거 태그": ("analyst", "writer", "reviewer"),
-    "피드백 = 확인사항 태그": ("analyst", "writer", "reviewer"),
+    "팝업 처리 — 공통": ("analyst", "writer", "reviewer", "augmenter"),
+    "비고(V) / 피드백(W) — 역할 분리": ("analyst", "writer", "reviewer", "augmenter"),
+    "비고 = 근거 태그": ("analyst", "writer", "reviewer", "augmenter"),
+    "피드백 = 확인사항 태그": ("analyst", "writer", "reviewer", "augmenter"),
     "공통 DESC C-ID는 **공유 키**다 — 소진되는 번호가 아니다": ("analyst", "writer", "reviewer"),
     '"하나의 정의"의 판단 기준 — 내용 유사성이 아니라 **기획서의 상호 참조**': ("analyst", "reviewer"),
     "DESC 번호 두 체계 — 섞지 말고 분석서를 따른다": ("analyst", "writer", "reviewer"),
-    "CH-ID 네임스페이스": ("analyst", "writer", "reviewer", "sheet-analyst"),
-    "CH-ID 충돌 방지 — 기존 탭에 이어 쓸 때": ("analyst", "writer", "sheet-analyst"),
-    "변경 표기 경로의 위계 — 박스는 범위를 확정하지 않는다": ("analyst", "writer", "reviewer"),
+    "CH-ID 네임스페이스": ("analyst", "writer", "reviewer", "sheet-analyst", "augmenter"),
+    "CH-ID 충돌 방지 — 기존 탭에 이어 쓸 때": ("analyst", "writer", "sheet-analyst", "augmenter"),
+    "파생 케이스의 원천 — 기획서가 아닌 근거": ("writer", "reviewer", "augmenter"),
+    "파생 케이스 작성 규칙": ("writer", "reviewer", "augmenter"),
+    "변경 표기 경로의 위계 — 박스는 범위를 확정하지 않는다": ("analyst", "writer", "reviewer", "augmenter"),
     "규칙": ("analyst", "writer", "reviewer"),
-    "취소선 = 삭제 — 정상 동작 케이스를 만들지 않는다": ("analyst", "writer", "reviewer"),
-    "금지 — 삭제된 내용으로 만들 수 있는 케이스는 하나뿐이다": ("writer", "reviewer"),
-    '경계 — "삭제 자리의 대체 동작"': ("writer", "reviewer"),
+    "취소선 = 삭제 — 정상 동작 케이스를 만들지 않는다": ("analyst", "writer", "reviewer", "augmenter"),
+    "금지 — 삭제된 내용으로 만들 수 있는 케이스는 하나뿐이다": ("writer", "reviewer", "augmenter"),
+    '경계 — "삭제 자리의 대체 동작"': ("writer", "reviewer", "augmenter"),
     "검출 한계 — 취소선은 스크립트로 완전히 잡히지 않는다": ("analyst", "reviewer"),
-    "변경분 모드 태그 (기획서 유형 = `변경` 일 때)": ("analyst", "writer", "reviewer"),
-    "비고 — 변경분 전용 태그": ("analyst", "writer", "reviewer"),
-    "피드백 — 변경분 전용 태그": ("analyst", "writer", "reviewer"),
-    "탭 구조 / 작성 절차": ("writer", "sheet-analyst"),
-    "새 케이스 작성 시 암묵 규칙 (공통 요약)": ("writer", "reviewer"),
+    "변경분 모드 태그 (기획서 유형 = `변경` 일 때)": ("analyst", "writer", "reviewer", "augmenter"),
+    "비고 — 변경분 전용 태그": ("analyst", "writer", "reviewer", "augmenter"),
+    "피드백 — 변경분 전용 태그": ("analyst", "writer", "reviewer", "augmenter"),
+    "탭 구조 / 작성 절차": ("writer", "sheet-analyst", "augmenter"),
+    "새 케이스 작성 시 암묵 규칙 (공통 요약)": ("writer", "reviewer", "augmenter"),
     # ── profile-*.md
     "`K8s` 와 `CI/CD` 는 같은 프로파일을 쓴다": ROLES,
-    "제품 고유 값": ("writer", "reviewer", "sheet-analyst"),
+    "제품 고유 값": ("writer", "reviewer", "sheet-analyst", "augmenter"),
     "화면 ID (F열)": ROLES,
-    "enum — VIOLA 실측": ("writer", "reviewer"),
-    "enum — TROMBONE 실측": ("writer", "reviewer"),
-    "우선순위 분포": ("writer", "reviewer"),
-    "구분 분포 — 지배 구분은 **`표시`**": ("writer", "reviewer"),
-    "구분 × 우선순위 결합 규칙 (실측 근거)": ("writer", "reviewer"),
-    "구분 × 우선순위 결합 규칙 (실측)": ("writer", "reviewer"),
-    "구분 × 우선순위 결합 규칙 (VIOLA 승계)": ("writer", "reviewer"),
-    "3 Depth (K) — 4종 고정": ("writer", "reviewer"),
-    "3 Depth (K) — 4종 고정 (VIOLA 승계)": ("writer", "reviewer"),
-    "표기 컨벤션 — VIOLA 고유": ("writer", "reviewer"),
-    "표기 컨벤션 — TROMBONE 고유": ("writer", "reviewer"),
-    "UI 라벨 = **백틱**": ("writer", "reviewer"),
-    "절차·예상 결과 실측값": ("writer", "reviewer"),
-    "작성 예시 (익명화)": ("writer",),
-    "VIOLA 암묵 규칙 (프로파일 고유분만)": ("writer", "reviewer"),
+    "enum — VIOLA 실측": ("writer", "reviewer", "augmenter"),
+    "enum — TROMBONE 실측": ("writer", "reviewer", "augmenter"),
+    "우선순위 분포": ("writer", "reviewer", "augmenter"),
+    "구분 분포 — 지배 구분은 **`표시`**": ("writer", "reviewer", "augmenter"),
+    "구분 × 우선순위 결합 규칙 (실측 근거)": ("writer", "reviewer", "augmenter"),
+    "구분 × 우선순위 결합 규칙 (실측)": ("writer", "reviewer", "augmenter"),
+    "구분 × 우선순위 결합 규칙 (VIOLA 승계)": ("writer", "reviewer", "augmenter"),
+    "3 Depth (K) — 4종 고정": ("writer", "reviewer", "augmenter"),
+    "3 Depth (K) — 4종 고정 (VIOLA 승계)": ("writer", "reviewer", "augmenter"),
+    "표기 컨벤션 — VIOLA 고유": ("writer", "reviewer", "augmenter"),
+    "표기 컨벤션 — TROMBONE 고유": ("writer", "reviewer", "augmenter"),
+    "UI 라벨 = **백틱**": ("writer", "reviewer", "augmenter"),
+    "절차·예상 결과 실측값": ("writer", "reviewer", "augmenter"),
+    "작성 예시 (익명화)": ("writer", "augmenter"),
+    "VIOLA 암묵 규칙 (프로파일 고유분만)": ("writer", "reviewer", "augmenter"),
     # ── profile-trombone.md 고유
-    "TC ID 모듈코드 (실측)": ("writer", "reviewer", "sheet-analyst"),
-    "구분 분포 — 지배 구분은 **`정상`**": ("writer", "reviewer"),
-    "3 Depth (K) — 7종, **탭별 실사용 범위가 다르다**": ("writer", "reviewer"),
-    "⚠️ UI 라벨 = **대괄호**. 백틱을 쓰지 않는다": ("writer", "reviewer"),
-    "메시지 코드 인용 (TROMBONE 고유)": ("writer", "reviewer"),
-    "팝업 `3 Depth` — 고정되지 않는다": ("analyst", "writer", "reviewer"),
-    "V/W 소수 혼용에 대한 방침": ("writer", "reviewer"),
-    "피드백 태그 실측 분포": ("writer", "reviewer"),
-    "비고 태그 실측": ("writer", "reviewer"),
-    "TROMBONE 암묵 규칙 (프로파일 고유분만)": ("writer", "reviewer"),
+    "TC ID 모듈코드 (실측)": ("writer", "reviewer", "sheet-analyst", "augmenter"),
+    "구분 분포 — 지배 구분은 **`정상`**": ("writer", "reviewer", "augmenter"),
+    "3 Depth (K) — 7종, **탭별 실사용 범위가 다르다**": ("writer", "reviewer", "augmenter"),
+    "⚠️ UI 라벨 = **대괄호**. 백틱을 쓰지 않는다": ("writer", "reviewer", "augmenter"),
+    "메시지 코드 인용 (TROMBONE 고유)": ("writer", "reviewer", "augmenter"),
+    "팝업 `3 Depth` — 고정되지 않는다": ("analyst", "writer", "reviewer", "augmenter"),
+    "V/W 소수 혼용에 대한 방침": ("writer", "reviewer", "augmenter"),
+    "피드백 태그 실측 분포": ("writer", "reviewer", "augmenter"),
+    "비고 태그 실측": ("writer", "reviewer", "augmenter"),
+    "TROMBONE 암묵 규칙 (프로파일 고유분만)": ("writer", "reviewer", "augmenter"),
     # ── profile-bootfactory.md 고유
     # 「실측이 아니라 파생」 경고는 **전 역할**이 알아야 한다 —
     # 리뷰가 편차를 작성자 탓으로 몰면 안 되고, 분석·작성도 근거 강도를 알아야 한다.
     "⚠️ 이 프로파일은 실측이 아니라 파생이다": ROLES,
     "근거 없는 값 — 바꾸려면 비싸다": ROLES,
-    "enum — VIOLA 분포 이식 (BF 실측 아님)": ("writer", "reviewer"),
-    "표기 컨벤션 — VIOLA 승계": ("writer", "reviewer"),
-    "절차·예상 결과": ("writer", "reviewer"),
-    "BootFactory 암묵 규칙 (프로파일 고유분만)": ("writer", "reviewer"),
+    "enum — VIOLA 분포 이식 (BF 실측 아님)": ("writer", "reviewer", "augmenter"),
+    "표기 컨벤션 — VIOLA 승계": ("writer", "reviewer", "augmenter"),
+    "절차·예상 결과": ("writer", "reviewer", "augmenter"),
+    "BootFactory 암묵 규칙 (프로파일 고유분만)": ("writer", "reviewer", "augmenter"),
     "실행 이력": ("reviewer", "sheet-analyst"),
 }
 
@@ -242,7 +253,7 @@ def build(role: str, fdir: str, profile: str, doc_type: str,
 - 원천: `{common}` + `{prof}`
 - 이 역할에 배정되지 않은 절은 들어 있지 않다. **필요하다고 판단되면 원천 파일을 직접 열어라**
 - 변경분 모드 절 포함 여부: **{'포함' if include_change else '제외'}**
-  (기획서 유형 `{doc_type}` / 변경 정책 예외 {'있음' if has_change_exc else '없음'})
+  (원천 유형 `{doc_type}` / 변경 정책 예외 {'있음' if has_change_exc else '없음'})
 """)
     if phase0_path:
         parts.append("\n---\n\n" + open(phase0_path, encoding="utf-8").read().rstrip() + "\n")

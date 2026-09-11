@@ -102,9 +102,9 @@ testcase-auto/
 
 ## 3. 구성 요소
 
-### 3-1. 에이전트 4개 (`.claude/agents/`)
+### 3-1. 에이전트 5개 (`.claude/agents/`)
 
-모두 `type: general-purpose`, `model: opus`.
+모두 `type: general-purpose`. `model` 은 단계별로 다르다 — `prd-analyst`·`testcase-reviewer` 는 `opus`, `testcase-writer`·`sheet-analyst`·`tc-augmenter` 는 `sonnet`.
 
 | 에이전트 | 역할 | 사용 스킬 | 산출물 |
 |---------|------|----------|--------|
@@ -112,6 +112,7 @@ testcase-auto/
 | **sheet-analyst** | 양식 사양(공통 골격 + 제품 프로파일) 로드 + 대상 시트 드리프트 검증 (헤더·마지막 ID·신규 enum) | `sheet-operator` | `02_sheet_format.md` |
 | **testcase-writer** | 분석 결과 + 양식 → 실제 TC 도출 및 시트 batch 작성 | `testcase-generator`, `sheet-operator` | `03_testcases_s{NN}.md` + 시트 행 |
 | **testcase-reviewer** | 3개 경계면 교차 검증 QA | `testcase-reviewer`, `sheet-operator` | `04_review_report_s{NN}.md` |
+| **tc-augmenter** | **기존 TC 인벤토리 + (권한) 매트릭스 → 파생 케이스 도출 및 시트 batch 작성.** 기획서를 읽지 않는다 | `testcase-generator`(참조 2종), `sheet-operator` | `12_cases_{EX\|PM}-B{NN}.md` + `13_rows_*.tsv` + 시트 행 |
 
 각 에이전트 정의는 동일한 6개 섹션 구조를 가진다: 핵심 역할 / 작업 원칙 / 입력 프로토콜 / 출력 프로토콜 / 팀 통신 프로토콜 / 에러 핸들링 / 재호출 지침 / 사용 스킬.
 
@@ -121,18 +122,20 @@ testcase-auto/
 - `sheet-analyst` — 모드 A(사양 로드 + 대상 시트 헤더·꼬리 드리프트 검증) / 모드 B(참고 시트 전수 스캔으로 프로파일 갱신), **사양 로드는 `common.md` + 제품 프로파일 두 개를 함께**, enum distinct 수집, **프로파일은 Phase 0 제품 유형으로 이미 확정** — 대상 시트에 데이터가 있으면 솔루션 컬럼 실측값과 **대조만** 하고 어긋나면 보고(솔루션 접미사 분리는 실측 0건이므로 발견되면 사양 외 enum(Major)), 3 Depth 실사용 범위 판정, **검증 단위 판정**(절차 1~2단계+예상 1~3줄 → atomic / 절차 4단계 이상 → scenario)
 - `testcase-writer` — 생성 모드 준수, 양식 엄격 준수(23컬럼 A~W, 컬럼 임의 추가 금지), 기획서 유형(신규/변경)과 예외 화면 목록을 그대로 적용, ID 충돌 방지, batch 쓰기, 분포 표는 실제 카운트와 정확히 일치(추정 금지)
 - `testcase-reviewer` — 임의 수정 금지(발견만 보고, 수정은 writer), TC-ID·컬럼명 단위 구체 지적, **기획서 유형별 판정 기준 분리**(변경분 모드에서 비변경분 미작성을 "누락"으로 지적하는 것은 오판), 재검토 시 이전 보고서와 개선도 비교
+- `tc-augmenter` — **원천이 기획서가 아니라 기존 테스트 케이스다.** 오케스트레이터가 준 값(작업 유형·프로파일·기능 단위 목록·TC ID/`No` 시작 번호·확정된 권한 대응표)을 **재판정하지 않고 그대로 쓴다**, `화면 ID`·`1~3 Depth` 는 원본 승계(유추 금지), 중복 판정 근거는 인벤토리의 기존 커버리지 맵, 예상 결과는 동작 수준까지만(문구·코드·지연은 `[기획 확인]`), **분포를 프로파일에 맞추려 하지 않는다**(정의상 일부 구분만 만든다)
 
-### 3-2. 스킬 5개 + 양식 사양 + 외부 메타 스킬
+### 3-2. 스킬 6개 + 양식 사양 + 외부 메타 스킬
 
 | 스킬 | 유형 | 역할 | 번들 스크립트 |
 |------|------|------|--------------|
 | **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 5개 수집 게이트**, 화면 루프 제어, 사용자 게이트 관리 | — |
+| **testcase-augment** | 오케스트레이터 | **두 번째 절차 — 기존 테스트 케이스가 원천.** `예외 사항`·`권한` 파생 케이스의 Phase 0~4 지휘, 게이트 3곳(권한 판독 / 규모 / 첫 배치), 배치 루프. 기획서를 읽지 않고 제품 유형은 `솔루션` 실측으로 판정한다. 구글 시트 전용(엑셀 미지원) | `read_tc_inventory.py` |
 | **양식 사양** (`.claude/formats/`) | 데이터 | **공통 골격 1 + 제품 프로파일 3.** 컬럼 구조는 **전 제품 A~W 23컬럼 통일**. 케이스를 쓰려면 `common.md` **+ 해당 프로파일 두 개를 함께** 읽는다 | — |
 | **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차. **입력 유형·정책별 절은 `references/` 로 분리**(변경분 모드가 본문의 34%였다) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
-| **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분포 기준(사양 기반), 우선순위 정책. 변경분 모드(0-H)는 `references/` 분리 | — |
-| **testcase-reviewer** | 검증 규칙 | 3경계면 교차 비교 절차, 권고 분류(Critical/Major/Minor). **결정적 점검은 스크립트로 내렸다(3-0)** — 리뷰어는 판단이 필요한 것만 본다 | `verify_sheet_rows.py` |
-| `build_brief.py` | **역할별 브리핑 생성** — 사양 절을 역할(`analyst`/`writer`/`reviewer`/`sheet-analyst`)에 맞춰 **원문 그대로 발췌**(요약하지 않는다). `--doc-type=신규` + 예외 없음이면 변경분 모드 절 제외, 화면 인덱스 슬림판은 `analyst` 만. **`--coverage-check` 는 사양의 모든 절이 어느 역할엔가 배정됐는지 검사**하고 미배정이면 exit 3 — 새 절이 조용히 어느 브리핑에도 안 들어가는 사고를 막는다 | `python build_brief.py --role=<역할> --profile=<제품> --doc-type=<신규\|변경> [--index] [--phase0] [--has-change-exception] --out=<경로>` / `--coverage-check` |
+| **testcase-generator** | 판단 규칙 | 케이스 도출 원칙 — 생성 모드, 커버리지 규칙, 분포 기준(사양 기반), 우선순위 정책. 변경분 모드(0-H)는 `references/` 분리. **추가 작업용 `references/exception-catalog.md`(예외 유형 12종·적용 판정)·`references/permission-mode.md`(셀→검증 지점 전개)** 포함 | — |
+| **testcase-reviewer** | 검증 규칙 | 3경계면 교차 비교 절차, 권고 분류(Critical/Major/Minor). **결정적 점검은 스크립트로 내렸다(3-0)** — 리뷰어는 판단이 필요한 것만 본다. 추가 작업 산출물은 `references/augment-mode.md`(원본TC↔파생 경계면·오판 방지 8종) | `verify_sheet_rows.py` |
+| `build_brief.py` | **역할별 브리핑 생성** — 사양 절을 역할(`analyst`/`writer`/`reviewer`/`sheet-analyst`/`augmenter`)에 맞춰 **원문 그대로 발췌**(요약하지 않는다). `--doc-type=신규` + 예외 없음이면 변경분 모드 절 제외, 화면 인덱스 슬림판은 `analyst` 만. **`--coverage-check` 는 사양의 모든 절이 어느 역할엔가 배정됐는지 검사**하고 미배정이면 exit 3 — 새 절이 조용히 어느 브리핑에도 안 들어가는 사고를 막는다 | `python build_brief.py --role=<역할> --profile=<제품> --doc-type=<신규\|변경\|추가> [--index] [--phase0] [--has-change-exception] --out=<경로>` / `--coverage-check` |
 | **harness** | 메타 | 하네스 자체를 설계·확장·감사·진화 (Phase 0~7). **외부 플러그인**이라 이 저장소에 포함되지 않는다 — `/plugin marketplace add revfactory/harness` | — |
 
 스킬은 "**도구(스크립트 사용법)**"와 "**판단 규칙(무엇을 어떻게 도출할지)**"으로 역할이 갈린다. 에이전트는 자신의 역할에 맞는 스킬을 조합해서 쓴다.
@@ -156,7 +159,7 @@ testcase-auto/
 > **제안값**이다. 이 둘은 전 행에 박히는 상수라 나중에 바꾸려면 열 전체를 고쳐야 한다.
 > **팀 BF 원본 시트가 나오면 전수 스캔(모드 B)으로 교체하는 것이 정공법이다.**
 
-### 3-3. 스크립트 10개
+### 3-3. 스크립트 11개
 
 원본은 `.claude/skills/<스킬>/scripts/`에 있고, 프로젝트 루트 `scripts/`에 상대 심볼릭 링크가 걸려 있다. **모든 명령은 프로젝트 루트에서 `scripts/...` 경로로 실행한다.**
 
@@ -166,6 +169,7 @@ testcase-auto/
 | `detect_red_regions.py` | 변경 표시(**빨강·파랑**) 영역 검출 + 크롭. **PDF / 이미지 파일 / 이미지 디렉터리 모두 입력 가능**(`--dpi`는 PDF만 적용). `--color=red\|blue\|both`(기본 `red`) — 표시색은 기획서마다 다르므로 실측해 지정한다. 글자 단위 조각을 줄→문단으로 병합하되 **큰 구조물(변경 박스)은 병합에서 제외**(박스가 주변 텍스트를 연쇄로 삼켜 페이지 전체가 한 영역으로 붕괴하는 것을 막는다). `shape`(box/text_line/blob)로 판독 우선순위 힌트 제공. **오탐 포함(원형 번호 배지·필수 표시 `*`·에러 아이콘·페이지 외곽 아트보드 프레임·파랑의 링크·기본 버튼·선택 탭) → 육안 확정 필수** | `python detect_red_regions.py <pdf\|이미지\|디렉터리> [--color=both] [--pages=2-3] [--dpi=150] [--output-dir] [--no-merge]` |
 | `detect_strikethrough.py` | **취소선 후보 검출 — 삭제 변경분 탐지.** 색 검출(`detect_red_regions.py`)로도 PDF 텍스트 레이어로도 잡히지 않는 표기를 기하학적으로 찾는다(두께 ≤ N px + **위·아래 양쪽에 글자 잉크** → 밑줄·구분선과 구별). `--color-only` 로 무채색 글자획·괘선 제거. 세로로 규칙적인 연속 런은 "하위 트리 전체 취소선"으로 묶어 보고. **`--min-len` 은 문서 글자 폭 실측값으로 정할 것**(한글 가로획이 짧은 수평선). **"0건"을 삭제 없음의 근거로 쓰려면 양성 대조 필수.** 오탐 포함 → 육안 확정 | `python detect_strikethrough.py <이미지\|디렉터리> [--color-only] [--min-len=70] [--max-thick=8] [--json]` |
 | `verify_sheet_rows.py` | **작성된 시트 행의 결정적(기계 판정) 양식 점검 + 로컬↔시트 전 셀 대조(`--diff`).** 헤더 원문·23컬럼·`피드백` 뒤 열 오염 · enum(우선순위·구분·`3 Depth`) · 구분×우선순위 결합 규칙 · `솔루션` 단일값 · `기능테스트 ID` 형식·중복 · `No` 연속성·중복 · Depth `-` vs 미사용 빈칸 · `비고`·`사전조건` 공란 · 절차 `N. ` 접두 · 예상 결과 명사형 · 본문 열 문체(백틱↔대괄호) · 셀 내 `\|`. **규칙은 `common.md` + 프로파일에서 파싱**하며 파싱 실패 시 하드코딩 폴백 없이 종료 코드 `3`. `--selftest` 로 검사기 자체 검증. 종료 코드 0/1/2/3 = 위반없음/Major이하/Critical/실행오류 | `python verify_sheet_rows.py --profile={viola\|trombone\|bootfactory} --sheet=<ID> --tab='<탭>' [--rows=2-56] [--tsv=f.tsv] [--json] [--selftest]` |
+| `read_tc_inventory.py` | **원본 테스트 케이스 인벤토리 — 추가 작업 Phase 1.** 원본 탭을 **스크립트가 읽어** 기능 단위(`화면 ID` + `2 Depth` + `3 Depth`) 목록·**기존 구분 커버리지 맵**·`솔루션` 실측 프로파일 판정·TC ID 접두별 다음 번호(관련 스프레드시트 **전 탭** 최대값)를 낸다. **파생 태그가 붙은 행은 원본에서 제외**(재실행 시 파생의 파생 방지)하되 커버리지에는 센다. 헤더 원문·파생 태그 접두·`솔루션` 고정값은 **사양에서 파싱**하며 실패 시 폴백 없이 종료 코드 `3`. 헤더 불일치는 집계하지 않고 Critical 보고만. 산출물 `10_tc_inventory.md` / `.json` | `python read_tc_inventory.py --source-sheet=<ID\|URL> --source-tab='<탭>' [--source-tab=…] [--target-sheet] [--target-tab] [--source-tsv=f.tsv] [--formats-dir] [--out-dir] [--selftest]` |
 | `check_image_quality.py` | 이미지 판독 품질 진단 — 해상도(짧은 변)·선명도(라플라시안 분산)·대비·파일 훼손을 측정해 `OK`/`주의`/`불가` 판정. `불가`가 있으면 종료 코드 `2`(파이프라인 게이트). 지표보다 **실제 판독 결과가 우선** | `python check_image_quality.py <이미지\|디렉터리> [--json=<path>] [--min-short-side=1200] [--min-sharpness=60]` |
 | `figma_api.py` | Figma REST API 클라이언트. `get_file`(depth 지정), `get_file_nodes`, `get_images`, `get_comments`, URL→file key 추출 | `python figma_api.py file\|nodes\|images <url_or_key> ...` |
 | `sheets_api.py` | Sheets API v4 (서비스 계정). **CLI 하위 명령 5개** — `read`/`write`/`append`/`metadata`/`add_tab`. `get_metadata`·`share`·`batch_update`·`create_spreadsheet` 는 **Python 메서드 전용이며 CLI에 없다** (메타 조회의 CLI 이름은 `metadata`, Python 이름은 `get_metadata()`). HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
