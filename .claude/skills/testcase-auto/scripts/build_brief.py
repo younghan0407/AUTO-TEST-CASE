@@ -62,6 +62,12 @@ CHANGE_ONLY = {
 
 # 절 제목(원문) → 그 절이 필요한 역할
 # 제목은 `#` 과 번호를 뗀 원문이며, 사양 파일의 표기를 그대로 쓴다.
+#
+# ⚠️ 이 dict의 키는 절 제목 문자열 하나이며 **전역**이다. `규칙`·`메타`·`예시` 같은
+# 흔한 하위 절 제목은 서로 다른 상위 절 밑에서도 같은 키로 충돌한다 — 그리고 그 제목이
+# `CHANGE_ONLY` 에도 있으면 `include_change` 가 False 인 모든 브리핑에서 **조용히 빠진다**
+# (어느 상위 절 소속인지는 검사하지 않는다). 새 절을 추가할 때는 겹치지 않는 고유한
+# 하위 절 제목을 쓴다.
 ROLE_SECTIONS: dict[str, tuple[str, ...]] = {
     # ── common.md
     "메타": ROLES,
@@ -93,8 +99,9 @@ ROLE_SECTIONS: dict[str, tuple[str, ...]] = {
     "CH-ID 네임스페이스": ("analyst", "writer", "reviewer", "sheet-analyst", "augmenter"),
     "CH-ID 충돌 방지 — 기존 탭에 이어 쓸 때": ("analyst", "writer", "sheet-analyst", "augmenter"),
     "파생 케이스의 원천 — 기획서가 아닌 근거": ("writer", "reviewer", "augmenter"),
+    "파생 케이스 작성 규칙": ("writer", "reviewer", "augmenter"),
     "변경 표기 경로의 위계 — 박스는 범위를 확정하지 않는다": ("analyst", "writer", "reviewer", "augmenter"),
-    "규칙": ("analyst", "writer", "reviewer", "augmenter"),
+    "규칙": ("analyst", "writer", "reviewer"),
     "취소선 = 삭제 — 정상 동작 케이스를 만들지 않는다": ("analyst", "writer", "reviewer", "augmenter"),
     "금지 — 삭제된 내용으로 만들 수 있는 케이스는 하나뿐이다": ("writer", "reviewer", "augmenter"),
     '경계 — "삭제 자리의 대체 동작"': ("writer", "reviewer", "augmenter"),
