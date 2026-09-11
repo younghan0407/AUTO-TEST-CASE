@@ -231,6 +231,37 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 
 ---
 
+## 2-1. 추가 작업 흐름 (`testcase-augment`) — 원천이 기존 테스트 케이스인 두 번째 절차
+
+기획서를 읽지 않는다. `prd-analyst`·`sheet-analyst`·`testcase-writer` 를 호출하지 않고,
+스크립트 `read_tc_inventory.py` → 에이전트 `tc-augmenter` → `testcase-reviewer`(추가 작업 모드)로 간다.
+
+| Phase | 하는 일 | 게이트 |
+|-------|--------|--------|
+| **0 기본 정보** | 작업 유형(`예외 사항`/`권한`, 복수 가능) · 원본 TC 시트·탭 · 작성 대상 시트·탭 · (권한) 권한 자료 경로. **제품 유형·기획서는 묻지 않는다** | 확정값 요약 표 |
+| **1-A 인벤토리** | `read_tc_inventory.py` 가 원본 탭을 읽어 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호를 낸다. **에이전트 호출 0** | 종료 코드 `2`(Critical)면 중단 |
+| **1-B 권한 판독** (`권한`만) | 권한 자료 → `11_permission_matrix.md`(역할×기능 권한값 + **기능 ↔ 원본 TC 대응표**) | ◆ **사용자 확인** |
+| **1-C 규모** | 기능 단위별 예상 케이스 수 · 배치 계획 · **제외 항목** | ◆ **사용자 확인** |
+| **1-D 브리핑** | `build_brief.py --role={augmenter\|reviewer} --doc-type=추가` (루프 전 1회) | — |
+| **2 생성·작성** | 배치마다 `tc-augmenter` 1회 → `12_cases_*.md` + `13_rows_*.tsv` + 시트 append | ◆ **첫 배치 검토** (작업 유형마다 1회) |
+| **3 검증** | `verify_sheet_rows.py`(+`--diff`) → `testcase-reviewer` 1회(추가 작업 모드) | Critical 시 재작성 1회 루프 |
+| **4 보고** | 유형별 결과·판정 근거·**제외 항목**·산출물 목록 | — |
+
+**이 흐름에서만 다른 것**
+
+- **제품 유형을 묻지 않는다** — 원본 TC의 `솔루션` 컬럼 **실측**으로 판정한다. 추정이 아니므로 「추정 금지」와 충돌하지 않는다
+- **분포 편차 점검을 적용하지 않는다** — 예외 파생은 `비정상`·`엣지` 만, 권한 파생은 `정상`·`부수` 만 만들어
+  어느 프로파일로 채점해도 지배 구분 역전이 반드시 뜬다. 완전성은 **예외 카탈로그 커버리지 / 매트릭스 셀 커버리지**로 본다
+- **파생 태그(`[예외 파생 …]`·`[권한 매트릭스 …]`)가 붙은 행은 다음 실행에서 원본이 되지 않는다** —
+  원본 탭과 대상 탭이 같아도 파생의 파생이 생기지 않는다. 접두 목록의 단일 출처는 `common.md` 의 코드블록이다
+- **첫 배치는 기능 단위 1개 단독**이고 **작업 유형마다 한 번씩** 게이트를 거친다. 한쪽 통과가 다른 쪽을 보증하지 않는다
+- **구글 시트 전용** — 엑셀(.xlsx)은 미지원으로 안내하고 중단한다
+
+산출물은 `_workspace/augment/` 에 격리된다 (`testcase-auto` 의 `00_*`~`04_*` 와 충돌하지 않는다).
+
+
+---
+
 ## 3. 데이터 전달 — 파일 기반 프로토콜
 
 에이전트끼리 결과를 대화로 넘기지 않는다. **모든 산출물은 `_workspace/` 아래 파일**이고, 다음 에이전트는 파일을 읽는다.
@@ -430,7 +461,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 
 **기존 시트는 사용자가 직접 서비스 계정 이메일에 편집자 공유해야 한다.** 안 하면 403이다.
 
-### 스크립트 10종 + 검증 스크립트
+### 스크립트 11종 + 검증 스크립트
 
 원본은 `.claude/skills/*/scripts/`에 있고 루트 `scripts/`에 **심볼릭 링크**가 걸려 있다. 모든 명령은 프로젝트 루트에서 `scripts/...` 경로로 실행한다.
 
@@ -438,6 +469,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 |---------|----------------------|
 | `sheets_api.py` | **CLI는 `metadata` / `read` / `write` / `append` / `add_tab` 5개** (서비스 계정). `share`·`batch_update`·`create_spreadsheet`는 Python 전용 |
 | `verify_sheet_rows.py` | `--profile=` `--sheet=` `--tab=` `--rows=` `--tsv=` `--json=` `--selftest` `--diff` — **결정적 양식 점검 + 로컬↔시트 전 셀 대조**. 규칙은 사양에서 파싱(하드코딩 폴백 없음, 실패 시 exit 3) |
+| `read_tc_inventory.py` | `--source-sheet=` `--source-tab=`(복수) `--target-sheet=` `--target-tab=` `--source-tsv=` `--out-dir=` `--selftest` — **추가 작업의 원본 TC 인벤토리**. 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호(전 탭 최대값). 파생 태그 행은 원본에서 제외. 규칙은 사양에서 파싱(실패 시 exit 3), 헤더 불일치는 집계 없이 exit 2 |
 | `build_brief.py` | `--role=` `--profile=` `--doc-type=` `--index=` `--phase0=` `--has-change-exception` `--out=` `--coverage-check` — **역할별 브리핑(사양 절 원문 발췌)**. 미배정 절은 exit 3 |
 | `oauth_sheet.py` | `create` (OAuth2 시트 생성 + 공유) |
 | `pdf_to_images.py` | `--dpi=` `--crop-desc` `--output-dir=` `--pages=START-END` **`--tile=auto\|N` `--tile-overlap=`** |
