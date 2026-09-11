@@ -205,6 +205,99 @@ def selftest() -> int:
             except SpecParseError:
                 check(name, True)
 
+        print("── 헤더 대조 ─────────────────────────────────")
+        check("S10 헤더 일치 → None",
+              header_mismatch(["No", "솔루션", "기능테스트 ID", "비고", "피드백"], h) is None)
+        check("S11 꼬리 빈칸은 무시한다",
+              header_mismatch(
+                  ["No", "솔루션", "기능테스트 ID", "비고", "피드백", "", ""], h) is None)
+        mm = header_mismatch(["No", "솔루션", "기능테스트 ID", "비고"], h)
+        check("S12 컬럼 수 불일치를 잡는다", mm is not None and "컬럼 수" in mm, mm)
+        mm = header_mismatch(["No", "솔루션", "기능테스트ID", "비고", "피드백"], h)
+        check("S13 컬럼명 불일치를 위치와 함께 잡는다",
+              mm is not None and "3번째" in mm, mm)
+
+        print("── TC ID 최대값 ──────────────────────────────")
+        t = tcid_max_by_prefix(["TC_VIO_007", "TC_VIO_010", "TC_VIO_009"])
+        check("S14 자릿수가 아니라 수치로 비교한다",
+              t["TC_VIO_"]["next"] == "TC_VIO_011", t)
+        t = tcid_max_by_prefix(["TC_AAA_003", "TC_BBB_012"])
+        check("S15 접두별로 따로 센다 (TROMBONE 모듈별 연속)",
+              t["TC_AAA_"]["next"] == "TC_AAA_004"
+              and t["TC_BBB_"]["next"] == "TC_BBB_013", t)
+
+        print("── 인벤토리 집계 ─────────────────────────────")
+        hdr = ["기능테스트 ID", "솔루션", "화면 ID", "우선순위", "구분",
+               "1 Depth", "2 Depth", "3 Depth", "절차", "예상 결과", "비고"]
+
+        def r(tc, sol, scr, pri, cat, d2, d3, note):
+            return [tc, sol, scr, pri, cat, "메뉴", d2, d3,
+                    f"1. {tc} 절차", f"{tc} 예상 결과", note]
+
+        rows = [
+            r("TC_F_001", "FIXTPROD", "SC-01", "P3", "표시", "목록 화면", "목록", "[DESC 1항]"),
+            r("TC_F_002", "FIXTPROD", "SC-01", "P3", "표시", "목록 화면", "목록", "[DESC 2항]"),
+            r("TC_F_003", "FIXTPROD", "SC-01", "P2", "비정상", "목록 화면", "목록", "[DESC 3항]"),
+            r("TC_F_004", "FIXTPROD", "SC-02", "P1", "정상", "생성 화면", "생성", "[DESC 1항]"),
+            # 파생 태그 행 — 원본에서 제외되고 커버리지에만 남아야 한다
+            r("TC_F_005", "FIXTPROD", "SC-01", "P2", "비정상", "목록 화면", "목록",
+              "[테스트 파생 TC_F_003] 서버 오류"),
+            [""] * len(hdr),                      # 빈 행은 세지 않는다
+        ]
+        inv = build_inventory(hdr, [("탭A", rows)], p, s)
+
+        check("S16 빈 행을 세지 않는다", inv["total_rows"] == 5, inv["total_rows"])
+        check("S17 파생 태그 행을 원본에서 제외한다",
+              (inv["derived_rows"], inv["source_rows"]) == (1, 4),
+              (inv["derived_rows"], inv["source_rows"]))
+        u = {(x["screen_id"], x["d3"]): x for x in inv["units"]}
+        check("S18 화면 ID + 2/3 Depth 로 기능 단위를 묶는다", len(inv["units"]) == 2,
+              len(inv["units"]))
+        check("S19 커버리지 맵은 파생분까지 센다 (중복 제거의 근거)",
+              u[("SC-01", "목록")]["coverage"] == {"표시": 2, "비정상": 2},
+              u[("SC-01", "목록")]["coverage"])
+        check("S20 원본 케이스 수는 파생분을 뺀 값이다",
+              u[("SC-01", "목록")]["source_count"] == 3,
+              u[("SC-01", "목록")]["source_count"])
+        check("S21 케이스 요약에 절차·예상이 한 줄로 들어간다",
+              u[("SC-02", "생성")]["cases"][0]["step"] == "1. TC_F_004 절차",
+              u[("SC-02", "생성")]["cases"][0])
+        check("S22 솔루션 실측으로 프로파일을 판정한다", inv["profile"] == "fixt",
+              inv["profile"])
+
+        print("── 판정 (Critical / Major) ───────────────────")
+        f0 = findings(inv, None, None)
+        check("S23 정상 입력에서 오탐 0건", f0 == [], f0)
+
+        mixed = rows[:3] + [r("TC_G_001", "OTHERSOL", "SC-03", "P3", "표시",
+                              "다른 화면", "목록", "[DESC 1항]")]
+        inv_m = build_inventory(hdr, [("탭A", mixed)], p, s)
+        f = findings(inv_m, None, None)
+        check("S24 솔루션 혼재를 Major로 보고한다",
+              any(x["code"] == "SOL_MIX" and x["level"] == MAJOR for x in f), f)
+
+        inv_u = build_inventory(hdr, [("탭A", [r("TC_H_001", "UNKNOWNSOL", "SC-01",
+                                                 "P3", "표시", "목록 화면", "목록",
+                                                 "[DESC 1항]")])], p, s)
+        f = findings(inv_u, None, None)
+        check("S25 프로파일에 없는 솔루션값은 Critical",
+              any(x["code"] == "NO_PROFILE" and x["level"] == CRITICAL for x in f), f)
+
+        inv_d = build_inventory(hdr, [("탭A", [rows[4]])], p, s)
+        f = findings(inv_d, None, None)
+        check("S26 원본 케이스 0건(전부 파생분)은 Critical",
+              any(x["code"] == "NO_SOURCE" and x["level"] == CRITICAL for x in f), f)
+        check("S27 Critical 이 있으면 종료 코드 2", exit_code(f) == 2, exit_code(f))
+
+        f = findings(inv, "컬럼 수 22개 ≠ 사양 23개", None)
+        check("S28 원본 탭 헤더 불일치는 Critical",
+              any(x["code"] == "SRC_HEADER" and x["level"] == CRITICAL for x in f), f)
+        f = findings(inv, None, "3번째 `X` ≠ 사양 `기능테스트 ID`")
+        check("S29 대상 탭 헤더 불일치도 Critical",
+              any(x["code"] == "TGT_HEADER" and x["level"] == CRITICAL for x in f), f)
+        check("S30 Major 만 있으면 종료 코드 0 (진행 가능)",
+              exit_code(findings(inv_m, None, None)) == 0)
+
         print("── 실제 사양으로도 파싱된다 ─────────────────")
         real = os.path.join(".claude", "formats")
         if os.path.isdir(real):
