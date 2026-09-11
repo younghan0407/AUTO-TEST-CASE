@@ -131,6 +131,183 @@ def profile_solutions(formats_dir: str) -> dict[str, str]:
     return out
 
 
+# ─────────────────────────────────────────────── 인벤토리 집계
+
+def header_mismatch(actual: list, spec: list[str]) -> str | None:
+    """대상 헤더가 사양과 다르면 사람이 읽을 차이 설명, 같으면 None."""
+    a = [str(c).strip() for c in actual]
+    while a and not a[-1]:
+        a.pop()
+    if a == spec:
+        return None
+    if len(a) != len(spec):
+        return f"컬럼 수 {len(a)}개 ≠ 사양 {len(spec)}개"
+    diff = [
+        f"{i + 1}번째 `{x}` ≠ 사양 `{y}`"
+        for i, (x, y) in enumerate(zip(a, spec))
+        if x != y
+    ]
+    return " / ".join(diff)
+
+
+def tcid_max_by_prefix(tcids: list[str]) -> dict[str, dict]:
+    """관측된 TC ID를 **접두별로** 묶어 최대값과 다음 번호를 낸다.
+
+    프로파일에서 ID 형식을 파싱하지 않는 이유: TROMBONE은 `TC_{모듈코드}_{3자리}`
+    로 **모듈별 연속**이고 VIOLA는 제품 전역 연속이다. 접두별로 세면 두 체계를
+    한 코드로 다룰 수 있고, 어느 접두를 쓸지는 프로파일 규칙을 아는 쪽이 고른다.
+    """
+    out: dict[str, dict] = {}
+    for t in tcids:
+        m = re.match(r"^(.*?)(\d+)$", str(t).strip())
+        if not m:
+            continue
+        pre, num = m.group(1), m.group(2)
+        e = out.setdefault(pre, {"max": 0, "digits": len(num)})
+        e["max"] = max(e["max"], int(num))
+        e["digits"] = max(e["digits"], len(num))
+    for pre, e in out.items():
+        e["next"] = f"{pre}{e['max'] + 1:0{e['digits']}d}"
+    return out
+
+
+def _idx(header: list[str], name: str) -> int:
+    try:
+        return header.index(name)
+    except ValueError:
+        raise SpecParseError(f"헤더에 `{name}` 컬럼이 없다: {header!r}") from None
+
+
+def _cell(row: list, i: int) -> str:
+    return str(row[i]).strip() if i < len(row) else ""
+
+
+def _one_line(s: str, limit: int = 60) -> str:
+    """첫 줄만 남기고 길면 자른다. 인벤토리는 원본 전문을 담지 않는다."""
+    t = s.replace("\r", "\n").split("\n")[0].strip()
+    return t if len(t) <= limit else t[: limit - 1] + "…"
+
+
+def build_inventory(header: list[str], tabs: list, prefixes: list[str],
+                    solutions: dict[str, str]) -> dict:
+    """기능 단위 인벤토리 + 기존 커버리지 맵.
+
+    `tabs`: `[(탭명, [데이터 행, …]), …]` — 헤더 행은 제외하고 넘긴다.
+
+    기능 단위 키는 **`화면 ID` + `2 Depth` + `3 Depth`** 다. 시트에서 케이스를
+    식별하는 축이 그 셋이므로, 파생 케이스가 어느 원본에 붙는지 이 키로 정해진다.
+    """
+    i_sol = _idx(header, "솔루션")
+    i_tc = _idx(header, "기능테스트 ID")
+    i_scr = _idx(header, "화면 ID")
+    i_pri = _idx(header, "우선순위")
+    i_cat = _idx(header, "구분")
+    i_d1 = _idx(header, "1 Depth")
+    i_d2 = _idx(header, "2 Depth")
+    i_d3 = _idx(header, "3 Depth")
+    i_step = _idx(header, "절차")
+    i_exp = _idx(header, "예상 결과")
+    i_note = _idx(header, "비고")
+
+    units: dict[tuple, dict] = {}
+    sol_count: dict[str, int] = {}
+    all_tcids: list[str] = []
+    total = derived = 0
+
+    for tab, rows in tabs:
+        for row in rows:
+            if not any(str(c).strip() for c in row):
+                continue                                    # 빈 행은 세지 않는다
+            total += 1
+            sol = _cell(row, i_sol)
+            if sol:
+                sol_count[sol] = sol_count.get(sol, 0) + 1
+            tcid = _cell(row, i_tc)
+            if tcid:
+                all_tcids.append(tcid)
+
+            key = (_cell(row, i_scr), _cell(row, i_d2), _cell(row, i_d3))
+            u = units.setdefault(key, {
+                "screen_id": key[0],
+                "d1": _cell(row, i_d1),
+                "d2": key[1],
+                "d3": key[2],
+                "tabs": [],
+                "source_count": 0,
+                "coverage": {},
+                "cases": [],
+            })
+            if tab not in u["tabs"]:
+                u["tabs"].append(tab)
+
+            cat = _cell(row, i_cat)
+            # 커버리지는 **파생분까지** 센다 — 중복 제거의 근거이기 때문이다
+            u["coverage"][cat] = u["coverage"].get(cat, 0) + 1
+
+            if any(pre in _cell(row, i_note) for pre in prefixes):
+                derived += 1
+                continue                     # 파생분은 원본 목록에 넣지 않는다
+            u["source_count"] += 1
+            u["cases"].append({
+                "tc_id": tcid,
+                "category": cat,
+                "priority": _cell(row, i_pri),
+                "step": _one_line(_cell(row, i_step)),
+                "expected": _one_line(_cell(row, i_exp)),
+            })
+
+    profile, note = None, ""
+    if sol_count:
+        top = max(sol_count, key=lambda k: sol_count[k])
+        profile = solutions.get(top)
+        if len(sol_count) > 1:
+            listed = ", ".join(
+                f"`{k}` {v}행"
+                for k, v in sorted(sol_count.items(), key=lambda kv: -kv[1])
+            )
+            note = f"한 원본에 솔루션값 혼재 — {listed} → 최다값 `{top}` 사용"
+
+    return {
+        "total_rows": total,
+        "derived_rows": derived,
+        "source_rows": total - derived,
+        "solution_count": sol_count,
+        "profile": profile,
+        "solution_note": note,
+        "tcid_by_prefix": tcid_max_by_prefix(all_tcids),
+        "units": list(units.values()),
+    }
+
+
+def findings(inv: dict, src_header_issue: str | None,
+             tgt_header_issue: str | None) -> list[dict]:
+    """진행 가능성 판정. Critical 은 작성 착수를 막는다."""
+    out: list[dict] = []
+    if src_header_issue:
+        out.append({"level": CRITICAL, "code": "SRC_HEADER",
+                    "msg": f"원본 탭 헤더가 사양과 불일치 — {src_header_issue}. "
+                           "원본을 잘못 읽으면 전 파생분이 어긋난다"})
+    if tgt_header_issue:
+        out.append({"level": CRITICAL, "code": "TGT_HEADER",
+                    "msg": f"대상 탭 헤더가 사양과 불일치 — {tgt_header_issue}. "
+                           "그냥 append하면 전 값이 밀린다"})
+    if inv["source_rows"] == 0:
+        out.append({"level": CRITICAL, "code": "NO_SOURCE",
+                    "msg": "뒤집을 원본 케이스가 0건 — 전 행이 파생 태그 행이거나 빈 탭이다"})
+    if inv["solution_count"] and inv["profile"] is None:
+        vals = ", ".join(f"`{k}`" for k in inv["solution_count"])
+        out.append({"level": CRITICAL, "code": "NO_PROFILE",
+                    "msg": f"프로파일에 없는 솔루션값 {vals} — "
+                           "참고 시트로 프로파일 신설(모드 B)이 필요하다"})
+    if inv["solution_note"]:
+        out.append({"level": MAJOR, "code": "SOL_MIX", "msg": inv["solution_note"]})
+    return out
+
+
+def exit_code(finds: list[dict]) -> int:
+    return 2 if any(f["level"] == CRITICAL for f in finds) else 0
+
+
 # ─────────────────────────────────────────────── selftest
 
 def _fixture(tmp: str) -> str:
