@@ -180,6 +180,32 @@ testcase-auto/
 
 ---
 
+### 3-A. 추가 작업 절차 구성 요소 (2026-09-10 신설)
+
+기존 테스트 케이스를 원천으로 파생 케이스를 만드는 두 번째 파이프라인(`testcase-augment`).
+기획서를 읽지 않으며 산출물은 `_workspace/augment/` 에 격리된다.
+
+| 구성 요소 | 경로 | 역할 |
+|----------|------|------|
+| 스킬 | `.claude/skills/testcase-augment/SKILL.md` | 오케스트레이터 (Phase 0~4, 게이트 3곳) |
+| 에이전트 | `.claude/agents/tc-augmenter.md` (`sonnet`) | 파생 케이스 생성 + 시트 작성 |
+| 스크립트 | `.claude/skills/testcase-augment/scripts/read_tc_inventory.py` | 원본 탭 인벤토리·커버리지 맵·번호 실측 |
+| 참조 | `testcase-generator/references/exception-catalog.md` | 예외 유형 12종 + 적용 판정 |
+| 참조 | `testcase-generator/references/permission-mode.md` | 셀 → 검증 지점 전개 + 기능 매핑 |
+| 참조 | `testcase-reviewer/references/augment-mode.md` | 원본TC↔파생 경계면 + 오판 방지 8종 |
+
+**`read_tc_inventory.py` CLI**
+
+| 옵션 | 설명 |
+|------|------|
+| `--source-sheet` + `--source-tab` | 원본 (탭은 여러 번 지정 가능) |
+| `--source-tsv` | 로컬 TSV 입력 (시트 접근 없이 검증) |
+| `--target-sheet` + `--target-tab` | 대상 탭 상태·번호 실측 (생략 가능) |
+| `--formats-dir` / `--out-dir` | 사양 디렉터리 / 산출물 디렉터리 |
+| `--selftest` | 자기검증 (사양을 고친 뒤 실행) |
+
+종료 코드: `0` 정상 / `2` Critical 있음 / `3` 실행 오류(사양 파싱 실패 포함 — **하드코딩 폴백 없음**)
+
 ## 4. 워크플로우 상세
 
 ### Phase 0 — 기본 정보 수집 + 컨텍스트 확인

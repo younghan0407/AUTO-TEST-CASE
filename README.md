@@ -60,6 +60,27 @@ python3 verify_setup.py
 **나머지는 하네스가 5가지 질문으로 채웁니다** — 기획서·시트 URL을 미리 적어 보내도 되고, 안 적어도 됩니다.
 요청 문구는 [docs/PROMPTS.md](docs/PROMPTS.md) 를 참고하세요 — 5가지 질문의 의미와 품질이 갈리는 지점이 정리되어 있습니다.
 
+## 테스트케이스 추가 작업 (예외 사항 / 권한)
+
+이미 작성된 테스트 케이스를 원천으로 **기획서에 없는 검증**을 파생 생성한다(`testcase-augment` 스킬). 기획서를 읽지 않는다.
+
+프롬프트에 `테스트케이스 추가 작업 진행해줘.` 를 입력하면 아래를 순서대로 묻는다.
+
+| 순서 | 묻는 것 |
+|------|--------|
+| 1 | 추가 작업 유형 — `예외 사항` / `권한` (복수 선택 가능) |
+| 2 | 원본 TC 시트 URL + **원본 탭** (탭 목록을 보여주고 고르게 한다) |
+| 3 | 작성 대상 시트 URL + 탭 (없으면 생성) |
+| 4 | (`권한` 일 때) 권한 자료 경로 — 시트 URL / CSV·마크다운 / 이미지·PDF |
+
+**묻지 않는 것:** 제품 유형(원본 TC의 `솔루션` 컬럼 실측으로 판정), 기획서 경로·유형.
+
+**구글 시트 전용이다.** 엑셀(.xlsx) 경로가 들어오면 미지원을 안내하고 중단한다 —
+구글 시트로 옮기거나 CSV로 내보내면 된다.
+
+진행 중 사용자 확인 게이트가 3곳 있다 — **권한 자료 판독 확인** / **규모 확인**(역할 × 기능
+전수는 수백 행이 될 수 있다) / **첫 배치 검토**(문체·태그 오류가 전 행에 번지기 전에 잡는다).
+
 ## 문서
 
 | 문서 | 용도 |
@@ -82,7 +103,9 @@ python3 verify_setup.py
 .claude/
   skills/          testcase-auto(오케스트레이터) / prd-analyzer / sheet-operator
                    testcase-generator / testcase-reviewer
+                   testcase-augment(추가 작업 오케스트레이터 — 예외 사항 / 권한)
   agents/          prd-analyst / sheet-analyst / testcase-writer / testcase-reviewer
+                   tc-augmenter(파생 케이스 생성)
   formats/         common.md(공통 골격) + profile-viola / profile-trombone / profile-bootfactory
                    — 참고 시트 대신 기준. 공통 골격 + 프로파일을 함께 읽는다
 scripts/           스킬 하위 원본에 대한 심볼릭 링크 (루트에서 실행하기 위한 것)
@@ -93,6 +116,7 @@ scripts/           스킬 하위 원본에 대한 심볼릭 링크 (루트에서
   verify_sheet_rows.py     작성된 시트 행의 결정적 양식 점검 + 로컬↔시트 전 셀 대조 (--diff)
   build_brief.py           역할별 브리핑 생성 — 사양 절 원문 발췌 (--coverage-check 로 배정 누락 검사)
   check_image_quality.py   이미지 판독 품질 진단 (해상도·선명도·훼손)
+  read_tc_inventory.py     기존 TC 인벤토리·커버리지 맵·번호 실측 (추가 작업 Phase 1)
   sheets_api.py            Google Sheets 읽기·쓰기 (서비스 계정)
   oauth_sheet.py           새 스프레드시트 생성 (OAuth2)
 verify_setup.py    세팅 점검 스모크 테스트

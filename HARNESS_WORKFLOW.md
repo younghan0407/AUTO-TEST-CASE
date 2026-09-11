@@ -231,6 +231,33 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 
 ---
 
+## 2-A. 추가 작업 절차 흐름 (`testcase-augment`, 2026-09-10 신설)
+
+기획서가 아니라 **기존 테스트 케이스**를 원천으로 하는 두 번째 실행 경로다.
+`prd-analyst`·`sheet-analyst`·`testcase-writer` 를 호출하지 않는다.
+
+```
+Phase 0  기본 정보 수집 — 작업 유형(예외/권한) · 원본 시트·탭 · 대상 시트·탭 · (권한) 자료 경로
+            제품 유형은 묻지 않는다 (Phase 1 실측 판정)
+   ↓
+Phase 1  read_tc_inventory.py  — 헤더 대조 · `솔루션` 실측 → 프로파일 · 기능 단위 · 커버리지 맵
+         1-B (권한) 매트릭스 판독 → ★ 사용자 확인 게이트
+         1-C 규모 확인 → ★ 사용자 확인 게이트
+         1-D build_brief.py --role=augmenter|reviewer --doc-type=추가
+   ↓
+Phase 2  tc-augmenter 배치 루프 → 12_cases_*.md + 13_rows_*.tsv + 시트 append
+            첫 배치 → ★ 사용자 검토 게이트 (작업 유형마다 1회)
+   ↓
+Phase 3  verify_sheet_rows.py (전수 + --diff) → testcase-reviewer 1회 (추가 작업 모드)
+   ↓
+Phase 4  종합 보고 — 제외 항목을 반드시 명시 (없으면 "제외 없음")
+```
+
+- **원본 TC는 스크립트가 읽는다.** 수백~수천 행을 에이전트에게 읽히지 않는다
+- **파생 태그가 붙은 행은 다음 실행에서 원본이 되지 않는다** — 재실행 시 파생의 파생 방지
+- **분포 편차 점검은 적용하지 않는다** — 예외는 `비정상`·`엣지`, 권한은 `정상`·`부수` 만 만드는
+  것이 이 작업의 정의이므로 어느 프로파일로 채점해도 지배 구분 역전이 뜬다
+
 ## 3. 데이터 전달 — 파일 기반 프로토콜
 
 에이전트끼리 결과를 대화로 넘기지 않는다. **모든 산출물은 `_workspace/` 아래 파일**이고, 다음 에이전트는 파일을 읽는다.
