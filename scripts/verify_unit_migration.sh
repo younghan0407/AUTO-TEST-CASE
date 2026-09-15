@@ -178,6 +178,17 @@ present "엑셀 미지원 명시"              '엑셀' \
                                                .claude/agents/tc-augmenter.md
 present "예외 카탈로그는 하한"          '상한이 아니라 하한' \
                                                .claude/skills/testcase-generator/references/exception-catalog.md
+present "예외 제외 상황 5종"            '제외 상황' \
+                                               .claude/skills/testcase-generator/references/exception-catalog.md \
+                                               .claude/agents/tc-augmenter.md \
+                                               .claude/skills/testcase-reviewer/references/augment-mode.md
+present "제외는 하한 규칙보다 우선"      '하한.{0,2}규칙보다 우선' \
+                                               .claude/skills/testcase-generator/references/exception-catalog.md \
+                                               .claude/agents/tc-augmenter.md
+present "제외 유형은 표에 남긴다"        '제외 \(E3\)' \
+                                               .claude/skills/testcase-generator/references/exception-catalog.md
+present "제외 0건 지적은 오판"           '제외 유형' \
+                                               .claude/skills/testcase-reviewer/references/augment-mode.md
 present "권한 규모 = 검증 지점 수"      '검증 지점' \
                                                .claude/skills/testcase-generator/references/permission-mode.md \
                                                .claude/skills/testcase-augment/SKILL.md

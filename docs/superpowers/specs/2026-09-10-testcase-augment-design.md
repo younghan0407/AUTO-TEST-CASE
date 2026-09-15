@@ -369,6 +369,10 @@ python scripts/verify_sheet_rows.py --profile=viola \
 
 ## 5. 예외 유형 카탈로그
 
+> ⚠️ **2026-09-15에 일부 무효화됐다.** 팀 고정 제외 5종이 신설되어 **유형 3·5·9·12가 제외**되고
+> **10은 축소**됐다(적용 판정표·`구분` 매핑도 함께 바뀌었다). 아래 표는 **2026-09-10 시점의 기록**이며
+> 현행 권위는 `exception-catalog.md` 다 — **이 표를 그대로 옮기지 마라.**
+
 `.claude/skills/testcase-generator/references/exception-catalog.md` 에 둔다.
 
 | # | 유형 | 검증 지점 예 |

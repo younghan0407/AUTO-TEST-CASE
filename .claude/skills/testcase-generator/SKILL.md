@@ -101,7 +101,7 @@ description: Figma 기획서 분석 결과와 팀 시트 양식을 입력으로 
 |------|----------|
 | **항상** | 이 SKILL 본문 |
 | 기획서 유형이 **`변경`** 또는 이 화면이 **변경 정책**(정책 예외) | `references/change-mode.md` (0-H) |
-| **추가 작업 = `예외 사항`** (`testcase-augment`) | `references/exception-catalog.md` — 예외 유형 12종·적용 판정·중복 판정·양식 매핑 |
+| **추가 작업 = `예외 사항`** (`testcase-augment`) | `references/exception-catalog.md` — 예외 유형 카탈로그(8종 적용·4종 제외)·제외 상황 E1~E5·적용 판정·중복 판정·양식 매핑 |
 | **추가 작업 = `권한`** (`testcase-augment`) | `references/permission-mode.md` — 셀→검증 지점 전개·기능 매핑·양식 매핑·상충 처리 |
 
 조건에 맞지 않으면 열지 않는다. 그 화면의 정책은 오케스트레이터가 프롬프트로 준다.
