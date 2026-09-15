@@ -20,6 +20,9 @@ CLI 사용:
   --selftest: 심어 둔 위반이 전부 잡히는지 자기검증 (사양을 고친 뒤 실행)
   --diff: `--tsv` 와 `--sheet`/`--tab` 을 **함께** 주면 로컬 원본 ↔ 시트를 셀 단위로 대조한다
           (「로컬 ↔ 시트」 경계면. 케이스 본문을 눈으로 비교하지 않는다)
+          `.tsv` 의 **헤더 행은 있어도 없어도 된다** — 첫 행이 사양 헤더와 정확히 같으면
+          건너뛴다. 파이프라인마다 관행이 다르기 때문이다
+          (`03_rows_s{NN}.tsv` 헤더 없음 / `13_rows_*.tsv` 1행이 헤더 원문)
 
 종료 코드: 0 = 위반 없음 / 1 = Major 이하만 / 2 = Critical 있음 / 3 = 실행 오류
 
@@ -177,16 +180,21 @@ def parse_profile(path: str) -> dict:
     tok = next((t for t in _ticks(cell) if "{" in t), None)
     if not tok:
         raise SpecParseError(f"{path}: `기능테스트 ID` 형식 토큰을 읽지 못했다")
-    m = re.search(r"\{(\d+)자리", tok)
+    m = re.search(r"\{(\d+)자리(\s*이상)?", tok)
     if not m:
         raise SpecParseError(f"{path}: `기능테스트 ID` 자리수를 읽지 못했다: {tok!r}")
     digits = int(m.group(1))
+    # `N자리 이상` = zero-pad 최소 폭이 N 이고 번호가 자라면 늘어난다.
+    # 순번이 999를 넘으면 3자리로는 표현할 수 없으므로, 자리수 소진은 위반이 아니라
+    # 정상적인 증가다. 고정폭으로 검사하면 정상 행이 전부 위반으로 잡힌다
+    # (2026-09-11 실측: VIOLA 원본 3자리 999행 · 4자리 1,125행).
+    quant = f"{{{digits},}}" if m.group(2) else f"{{{digits}}}"
     prefix = tok.split("{")[0]                      # `TC_VIO_` 또는 `TC_`
     body = re.sub(r"\{[^}]*\}", "", tok)            # 플레이스홀더 제거
     if body.count("_") > prefix.count("_"):         # `TC_{모듈코드}_{3자리}` 형
-        out["tcid_re"] = rf"^{re.escape(prefix)}[A-Z0-9]+_\d{{{digits}}}$"
+        out["tcid_re"] = rf"^{re.escape(prefix)}[A-Z0-9]+_\d{quant}$"
     else:
-        out["tcid_re"] = rf"^{re.escape(prefix)}\d{{{digits}}}$"
+        out["tcid_re"] = rf"^{re.escape(prefix)}\d{quant}$"
     out["tcid_fmt"] = tok
 
     # 사전조건 / 테스트 데이터 사용 여부
@@ -515,11 +523,19 @@ def load_sheet(sheet: str, tab: str, rows: tuple[int, int] | None):
 # ─────────────────────────────────────────────── 로컬 ↔ 시트 대조
 
 def diff_local_sheet(local: list[list[str]], sheet: list[list[str]],
-                     first_row_no: int, ncol: int) -> Report:
+                     first_row_no: int, ncol: int,
+                     header: list[str]) -> Report:
     """로컬 `.tsv` 와 시트 행을 셀 단위로 대조한다 (「로컬 ↔ 시트」 경계면).
 
     케이스 본문을 사람이 눈으로 대조할 이유가 없다 — 같은지 다른지는 기계 판정이고,
     다르면 **어느 행 어느 컬럼이** 다른지가 필요한 정보다.
+
+    `.tsv` 의 헤더 행은 **있어도 없어도 된다.** 시트 쪽은 항상 데이터 첫 행부터 읽으므로,
+    로컬 첫 행이 사양 헤더와 정확히 같으면 건너뛴다 — 두 파이프라인이 서로 다른 관행을
+    쓰기 때문이다 (`testcase-generator` 의 `03_rows_s{NN}.tsv` 는 **헤더 없음**,
+    `tc-augmenter` 의 `13_rows_*.tsv` 는 **1행이 헤더 원문**). 한쪽 관행대로 만든 파일을
+    문서에 적힌 대로 넘겼는데 `DIFF_COUNT` 로 튕기면 안 된다 —
+    **오탐을 내는 검사기는 무시당해 검사 자체가 무력해진다.**
     """
     r = Report()
 
@@ -529,6 +545,11 @@ def diff_local_sheet(local: list[list[str]], sheet: list[list[str]],
 
     live = [row for row in sheet if any(str(c).strip() for c in row)]
     loc = [row for row in local if any(str(c).strip() for c in row)]
+
+    # 로컬 첫 행이 사양 헤더와 **정확히** 같을 때만 헤더로 보고 뺀다.
+    # 데이터 행의 첫 칸은 `No`(정수)라 실제 케이스 행과 혼동될 여지가 없다.
+    if header and loc and [norm(c) for c in loc[0][:ncol]] == [norm(c) for c in header[:ncol]]:
+        loc = loc[1:]
 
     if len(loc) != len(live):
         r.add(CRITICAL, "DIFF_COUNT",
@@ -623,6 +644,28 @@ def selftest(fdir: str) -> int:
     if quoted:
         fails.append(f"  ✗ 백틱 인용 오탐: {[f['code'] for f in quoted]}")
 
+    # TC ID 자리수 소진은 위반이 아니다 (2026-09-11 실측: VIOLA 4자리 1,125행).
+    # 고정폭으로 검사하면 999를 넘긴 정상 행이 전부 TCFMT 로 잡혀 검사기가 무시당한다.
+    for tcid in ("TC_VIO_999", "TC_VIO_1000", "TC_VIO_2125"):
+        over = verify(H, [mk(**{"기능테스트 ID": tcid})], common, profile, 2).findings
+        if over:
+            fails.append(f"  ✗ 자리수 오탐 `{tcid}`: {[f['code'] for f in over]}")
+
+    # `--diff` 는 `.tsv` 헤더 유무와 무관해야 한다.
+    # 두 파이프라인의 관행이 달라(`03_rows_*` 헤더 없음 / `13_rows_*` 헤더 있음),
+    # 한쪽을 문서대로 넘겼을 때 DIFF_COUNT 오탐이 나면 검사를 건너뛰게 된다.
+    data = mk()
+    for tsv, label in (([data], "헤더 없음"), ([H, data], "헤더 있음")):
+        d = diff_local_sheet(tsv, [data], 2, n, H)
+        if {f["code"] for f in d.findings} != {"DIFF_OK"}:
+            fails.append(f"  ✗ --diff {label} 오탐: "
+                         f"{[f['code'] for f in d.findings]}")
+    # 헤더를 건너뛴 뒤 실제 불일치는 여전히 잡아야 한다 (건너뛰기가 검사를 먹지 않는다)
+    other = mk(**{"예상 결과": "다른 값 표출"})
+    d = diff_local_sheet([H, data], [other], 2, n, H)
+    if "DIFF_CELL" not in {f["code"] for f in d.findings}:
+        fails.append("  ✗ --diff 헤더 스킵 후 불일치 미검출")
+
     # 중복·연속성
     a, b = mk(), mk()
     a[H.index("No")], b[H.index("No")] = "1", "1"
@@ -631,7 +674,7 @@ def selftest(fdir: str) -> int:
         if want not in codes:
             fails.append(f"  ✗ {want} 미검출")
 
-    print(f"자기검증 — 규칙 출처 {fdir} · 컬럼 {n}개 · 케이스 {len(cases) + 3}개")
+    print(f"자기검증 — 규칙 출처 {fdir} · 컬럼 {n}개 · 케이스 {len(cases) + 9}개")
     if fails:
         print("\n실패:")
         print("\n".join(fails))
@@ -697,7 +740,8 @@ def main(argv: list[str]) -> int:
         except Exception as e:
             print(f"오류: 입력을 읽지 못했다 — {e}", file=sys.stderr)
             return 3
-        rep = diff_local_sheet(loc, live, first, len(common["header"]))
+        rep = diff_local_sheet(loc, live, first, len(common["header"]),
+                               common["header"])
         print(f"로컬 ↔ 시트 대조 — `{opts['--tsv']}` vs {opts['--tab']} "
               f"{f'{rng[0]}~{rng[1]}행' if rng else '전체'}\n")
         for f in rep.findings:
