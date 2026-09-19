@@ -149,11 +149,19 @@ PDF 입력이면 페이지를 두 벌로 만든다. **변환 전에 캐시를 �
 
 ```bash
 # ⓪ 캐시 검사 — CACHE_OK 면 변환을 건너뛰고 1-A-2 로 간다
-python scripts/prd_cache.py check --pdf=<pdf> --shared=_workspace/VIOLA-K8s_4.0_v1/shared
+python scripts/prd_cache.py check --pdf=<pdf> --shared=_workspace/VIOLA-K8s_4.0_v1/shared --require=full,desc
 ```
 
 판정은 `CACHE_OK`(건너뜀) / `CACHE_MISMATCH`(**중단** — 다른 판본으로 만든 이미지다) /
-`CACHE_NO_MANIFEST`(페이지 수만 대조 + 사용자 확인) / `CACHE_PARTIAL`(부족한 것만 변환)이다.
+`CACHE_NO_MANIFEST`(매니페스트가 없거나 **variant 를 하나도 기록하지 않았다** — 페이지 수만
+대조 + 사용자 확인) / `CACHE_PARTIAL`(**매니페스트에 없는 variant** 이거나 **파일 수가
+어긋나는 variant** — 그것만 변환)이다.
+
+**`--require=` 를 빼면 안 된다.** 이 인자가 없으면 `check` 는 **매니페스트가 이미 아는
+variant 만** 검사하므로, `full` 만 등록된 트리가 `desc` 없이도 `CACHE_OK` 를 받는다. 그러면
+변환을 건너뛴 채 DESC 크롭 없이 진행해 분석 담당이 **전체 페이지(150 DPI)만 읽는다.**
+오류는 나지 않고 **판독 품질만 조용히 떨어진다.** 이름은 아래 ③ `write` 의
+`--variant=name=` 과 같다.
 **캐시를 재사용한 경우에도 DESC 조각 파일 목록은 똑같이 화면 에이전트에 넘긴다** — 이 전달이
 빠지면 분석 담당이 전체 페이지(150 DPI)만 읽어 한글 1자가 9.9px 로 도착하는 그 상태가 된다.
 
@@ -523,7 +531,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 | `sheets_api.py` | **CLI는 `metadata` / `read` / `write` / `append` / `add_tab` 5개** (서비스 계정). `share`·`batch_update`·`create_spreadsheet`는 Python 전용 |
 | `verify_sheet_rows.py` | `--profile=` `--sheet=` `--tab=` `--rows=` `--tsv=` `--json=` `--selftest` `--diff` — **결정적 양식 점검 + 로컬↔시트 전 셀 대조**. 규칙은 사양에서 파싱(하드코딩 폴백 없음, 실패 시 exit 3) |
 | `read_tc_inventory.py` | `--source-sheet=` `--source-tab=`(복수) `--screen-id=`(복수·범위) `--target-sheet=` `--target-tab=` `--source-tsv=` `--out-dir=` `--selftest` — **추가 작업의 원본 TC 인벤토리**. 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호(전 탭 최대값). 파생 태그 행은 원본에서 제외. 규칙은 사양에서 파싱(실패 시 exit 3), 헤더 불일치는 집계 없이 exit 2 |
-| `prd_cache.py` | `check` / `write` / `--pdf=` `--shared=` `--variant=name=,dir=,dpi=,tile=` `--page-count=` `--selftest` — **변환 이미지 재사용 판정**. 판정 근거는 경로가 아니라 **PDF 내용 해시**(`manifest.json` = 완료 마커). `CACHE_OK`(0) / `CACHE_MISMATCH`(2, **중단**) / `CACHE_NO_MANIFEST`(3) / `CACHE_PARTIAL`(4) |
+| `prd_cache.py` | `check` / `write` / `--pdf=` `--shared=` **`--require=full,desc`**(check) `--variant=name=,dir=,dpi=,tile=` `--page-count=` `--selftest` — **변환 이미지 재사용 판정**. 판정 근거는 경로가 아니라 **PDF 내용 해시**(`manifest.json` = 완료 마커). `CACHE_OK`(0) / `CACHE_MISMATCH`(2, **중단**) / `CACHE_NO_MANIFEST`(3, 매니페스트 부재 **또는 빈 `variants`**) / `CACHE_PARTIAL`(4, **미등록 variant** 또는 파일 수 불일치). **`--require=` 를 빼면 아는 variant 만 검사해 반만 채워진 트리가 `CACHE_OK` 를 받는다** |
 | `build_brief.py` | `--role=` `--profile=` `--doc-type=` `--index=` `--phase0=` `--has-change-exception` `--out=` `--coverage-check` — **역할별 브리핑(사양 절 원문 발췌)**. 미배정 절은 exit 3 |
 | `oauth_sheet.py` | `create` (OAuth2 시트 생성 + 공유) |
 | `pdf_to_images.py` | `--dpi=` `--crop-desc` `--output-dir=` `--pages=START-END` **`--tile=auto\|N` `--tile-overlap=`** |
