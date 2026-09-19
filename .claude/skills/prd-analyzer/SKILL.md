@@ -235,15 +235,21 @@ PDF 내용의 `sha256` 해시**다 — 파일명이 같아도 내용이 다르�
 **착수 전에 반드시 검사한다.**
 
 ```bash
-python scripts/prd_cache.py check --pdf=<PDF> --shared={SHARED}
+python scripts/prd_cache.py check --pdf=<PDF> --shared={SHARED} --require=full,desc
 ```
 
 | 결과 | 종료 코드 | 처리 |
 |------|----------|------|
 | `CACHE_OK` | 0 | **변환을 건너뛴다** |
 | `CACHE_MISMATCH` | 2 | **중단하고 사용자에게 알린다.** 다른 판본으로 만든 이미지다 |
-| `CACHE_NO_MANIFEST` | 3 | 페이지 수만 대조하고 **사용자 확인** 후 진행. 진행했다면 분석서에 그 사실을 남긴다 |
-| `CACHE_PARTIAL` | 4 | 부족한 variant 만 다시 변환하고 manifest 를 다시 쓴다 |
+| `CACHE_NO_MANIFEST` | 3 | 매니페스트가 없거나 **variant 를 하나도 기록하지 않았다.** 페이지 수만 대조하고 **사용자 확인** 후 진행. 진행했다면 분석서에 그 사실을 남긴다 |
+| `CACHE_PARTIAL` | 4 | **매니페스트에 없는 variant** 이거나 **파일 수가 어긋나는 variant** 다. 그것만 다시 변환하고 manifest 를 다시 쓴다 |
+
+**`--require=` 를 빼면 안 된다.** 이 인자가 없으면 `check` 는 **매니페스트가 이미 아는
+variant 만** 검사한다. `full` 만 등록된 트리는 `images_desc` 를 만든 적이 없어도
+`CACHE_OK` 를 받고, 그러면 변환을 건너뛴 채 DESC 크롭 없이 진행해 **전체 페이지
+150 DPI 만 읽게 된다** — 한글 본문 1자가 9.9px 로 도착하는 그 상태다. 오류는 나지
+않고 **판독 품질만 조용히 떨어진다.** 이름은 아래 `write` 의 `--variant=name=` 과 같다.
 
 부족한 variant 만 다시 써도 **나머지 variant 의 검사는 유지된다** — 같은 PDF
 해시면 manifest 가 병합되기 때문이다.

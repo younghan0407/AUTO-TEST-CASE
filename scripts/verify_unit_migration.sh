@@ -270,11 +270,15 @@ present "에이전트는 치환된 실제 경로를 받는다" '스스로 치환
 absent "에이전트·비오케스트레이터 문서의 _workspace 하드코딩" '_workspace' "${NOWS[@]}"
 present "augment 는 제품·버전 폴더 밖" '_workspace/augment' \
         .claude/skills/testcase-augment/SKILL.md
-# 단순히 '{WS}' 가 있는지 보면 안 된다 — 두 파일에 60여 회 나오므로, **값을 주는
-# 0-0 의 정의 행**(이 재편 전체의 단일 출처)을 지워도 8개 가드가 전부 통과한다.
-# 그래서 정의 행의 형태(`{WS}` = `_workspace/…`)를 그대로 찾는다. 실측상 이 패턴은
-# 두 오케스트레이터에서 각각 한 줄에만 걸린다.
-present "작업 루트 변수 정의 행" '\{WS\}` = `_workspace/' "${ORCH[@]}"
+# 단순히 '{WS}' 가 있는지 보면 안 된다 — 두 파일에 60여 회 나오므로, **두 변수에 값을
+# 주는 0-0 의 정의 행**(이 재편 전체의 단일 출처)을 지워도 8개 가드가 전부 통과한다.
+# 그래서 정의 행의 형태를 그대로 찾되 **두 변수를 한 패턴에 함께 요구한다** — `{WS}` 쪽만
+# 고정하면 같은 줄의 `{SHARED}` 정의만 지워도 통과하고, `{SHARED}` 는 60여 회 쓰인다.
+# ORCH 가 아니라 testcase-auto 단독인 이유: testcase-augment 는 원천이 시트라 공용 이미지
+# 트리가 없어 정의 행에 `{SHARED}` 가 **의도적으로** 없다. 그쪽 정의 행은 바로 위
+# `present '_workspace/augment'` 가 이미 정확히 한 줄로 고정한다.
+present "작업 루트 변수 정의 행" '\{WS\}` = `_workspace/.*\{SHARED\}` = `_workspace/' \
+        .claude/skills/testcase-auto/SKILL.md
 absent "오케스트레이터의 산출물 경로 하드코딩" \
        '_workspace/[0-9]|_workspace/pdf_images|_workspace/red_regions' "${ORCH[@]}"
 # 패턴에서 단독 '남긴다' 를 뺀 이유 — 바로 아래 해설 단락이 `shared/` 와 '남기는' 을 함께
