@@ -163,11 +163,12 @@ python scripts/check_image_quality.py <이미지 디렉터리|파일> --json={SH
 PDF 파일을 페이지별 PNG로 변환한다.
 
 ```bash
-python scripts/pdf_to_images.py <pdf_path> [--dpi=150] [--output-dir={SHARED}/pdf_images/<name>] [--pages=START-END]
+python scripts/pdf_to_images.py <pdf_path> [--dpi=150] [--output-dir={SHARED}/images] [--pages=START-END]
 ```
 
 - 기본 DPI: 150 (텍스트 가독성 충분). 텍스트가 작거나 표·다이어그램이 밀집된 경우 200으로 올린다.
-- 출력 파일: `{SHARED}/pdf_images/<pdf_basename>/page_001.png`, `page_002.png`, ...
+- 출력 파일: `{SHARED}/images/page_001.png`, `page_002.png`, ...
+- 스크립트 기본값은 `pdf_images/<pdf_basename>` 이지만 오케스트레이터가 항상 `--output-dir` 를 명시하므로 이 경로를 쓴다.
 - `pymupdf` 미설치 시 설치 안내 메시지가 출력되고 중단됨.
 - `--pages=START-END`: 변환할 페이지 범위 지정 (1-indexed, 양 끝 포함). 생략 시 전체 변환.
 
@@ -216,7 +217,7 @@ PDF 분석은 **화면 ID(`Screen ID` / `Page ID`) 단위로 순차 처리**한�
 
 **토큰도 함께 줄어든다.** 판독이 안 되면 에이전트가 영역을 다시 잘라 재판독하는데,
 그 왕복이 분할보다 비싸다 — 페이지당 **약 11.5K 토큰 → 약 6.5K 토큰**
-(실측 근거: 화면 34개 실행의 `{SHARED}/` 에 애드혹 재크롭 이미지 21장이 남아 있었다).
+(실측 근거: 화면 34개 실행의 작업 디렉터리에 애드혹 재크롭 이미지 21장이 남아 있었다).
 
 - 변환 후 stderr에 찍히는 **유효배율·한글 예상 px** 을 확인한다. 경고가 뜨면 그대로 진행하지 말고 조각 수를 늘린다
 - 조각 파일명은 `page_NNN_desc_t1.png` ~ `_tN.png` 이며 **위에서 아래 순서**다. 경계에 걸친 줄이 잘리지 않도록 조각 간 겹침(기본 24pt)이 들어 있다
@@ -255,10 +256,11 @@ python scripts/prd_cache.py check --pdf=<PDF> --shared={SHARED}
 ```bash
 python scripts/prd_cache.py write --pdf=<PDF> --shared={SHARED} \
     --variant=name=full,dir=images,dpi=150,tile=none \
-    --variant=name=tiled,dir=images_tiled,dpi=150,tile=auto \
     --variant=name=desc,dir=images_desc,dpi=200,tile=auto \
     --page-count=<페이지 수>
 ```
+
+다른 변환을 추가로 만들었으면 그만큼 `--variant=` 를 더 준다 — 등록하지 않은 디렉터리는 무결성 검사를 받지 않는다.
 
 `manifest.json` 이 **완료 마커**다. 변환이 중간에 끊긴 디렉터리는 매니페스트가
 없어 캐시로 인정되지 않는다 — 이 장치가 없으면 **페이지가 조용히 빠진다.**
