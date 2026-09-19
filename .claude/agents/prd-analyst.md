@@ -35,6 +35,7 @@ model: opus
    조각이 오지 않았는데 한글 본문이 흐려 판독이 안 되면 **추측하지 말고**
    `[판독 불가]` 로 남기거나 오케스트레이터에 분할 재변환을 요청한다
    (`pdf_to_images.py --crop-desc --tile=auto`). 특정 문구만 안 보이면 그 영역만 별도 크롭한다.
+   애드혹 재크롭은 **등록된 variant 디렉터리(`{SHARED}/images`·`{SHARED}/images_desc`)에 넣지 않는다** — manifest 가 파일 수를 기록하므로 한 장만 늘어도 이후 모든 실행이 `CACHE_PARTIAL` 이 되어 캐시가 영영 살아나지 않는다.
 
 1. **Description이 1순위, UI 화면이 2순위다.** 스펙 페이지의 Description 패널에 명시된 모든 항목은 빠짐없이 분석 결과에 포함한다. Description에 없는 정보는 UI 화면에서 보완한다.
 
