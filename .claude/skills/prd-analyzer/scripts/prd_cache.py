@@ -57,7 +57,23 @@ def count_images(directory: str) -> int:
 
 def write_manifest(pdf, shared, variants, page_count=None):
     """전량 성공한 뒤에만 manifest 를 쓴다 — 이 파일이 완료 마커다."""
+    pdf_hash = sha256_file(pdf)
+    mp = os.path.join(shared, MANIFEST)
+
+    # 기존 매니페스트가 있으면 같은 PDF 버전이라면 병합한다.
     recorded = {}
+    if os.path.isfile(mp):
+        try:
+            with open(mp, encoding="utf-8") as f:
+                existing = json.load(f)
+            # PDF 해시가 일치하면 (같은 버전) 기존 variant들을 유지한다.
+            if existing.get("sha256") == pdf_hash:
+                recorded = dict(existing.get("variants") or {})
+        except (OSError, ValueError):
+            # 매니페스트가 깨지면 새로 시작한다.
+            pass
+
+    # 이번 호출의 variant들을 새로 계산해서 업데이트한다.
     for v in variants:
         n = count_images(os.path.join(shared, v["dir"]))
         if n <= 0:
@@ -65,15 +81,16 @@ def write_manifest(pdf, shared, variants, page_count=None):
         recorded[v["name"]] = {
             "dir": v["dir"], "dpi": v.get("dpi"), "tile": v.get("tile"), "files": n,
         }
+
     data = {
         "source_pdf": pdf,
-        "sha256": sha256_file(pdf),
+        "sha256": pdf_hash,
         "page_count": page_count,
         "variants": recorded,
         "created": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
     }
     os.makedirs(shared, exist_ok=True)
-    with open(os.path.join(shared, MANIFEST), "w", encoding="utf-8") as f:
+    with open(mp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
         f.write("\n")
     return "WRITE_OK", {"variants": sorted(recorded), "sha256": data["sha256"][:16]}
@@ -166,11 +183,93 @@ def _selftest() -> int:
         st, d = check_manifest(pdf2, shared)
         chk("S6 경로가 달라도 CACHE_OK", st == "CACHE_OK", st)
 
+        # S7: variant 병합 테스트 — full 을 쓴 뒤 desc 를 쓰면 둘 다 manifest 에 남는다.
+        shared3 = os.path.join(t, "shared3")
+        img_full = os.path.join(shared3, "images_full")
+        img_desc = os.path.join(shared3, "images_desc")
+        os.makedirs(img_full)
+        os.makedirs(img_desc)
+        for i in (1, 2, 3):
+            with open(os.path.join(img_full, "page_%03d.png" % i), "wb") as f:
+                f.write(b"x")
+            with open(os.path.join(img_desc, "page_%03d.png" % i), "wb") as f:
+                f.write(b"y")
+
+        st, d = write_manifest(pdf, shared3, [{"name": "full", "dir": "images_full", "dpi": 150, "tile": None}])
+        chk("S7 첫 variant write", st == "WRITE_OK", st)
+        st, d = write_manifest(pdf, shared3, [{"name": "desc", "dir": "images_desc", "dpi": 200, "tile": "auto"}])
+        chk("S7 두 번째 variant write", st == "WRITE_OK", st)
+
+        # 병합되었으므로 manifest 에는 both 가 있고
+        with open(os.path.join(shared3, MANIFEST), encoding="utf-8") as f:
+            m = json.load(f)
+        chk("S7 full 이 manifest 에 남음", "full" in m.get("variants", {}))
+        chk("S7 desc 가 manifest 에 추가됨", "desc" in m.get("variants", {}))
+
+        # check_manifest 가 여전히 full 의 파일 수를 검증한다.
+        st, d = check_manifest(pdf, shared3)
+        chk("S7 병합 후 CACHE_OK", st == "CACHE_OK", st)
+        os.remove(os.path.join(img_full, "page_001.png"))
+        st, d = check_manifest(pdf, shared3)
+        chk("S7 full 이미지 삭제하면 CACHE_PARTIAL", st == "CACHE_PARTIAL", st)
+        chk("S7 PARTIAL 이 full 을 지적", d.get("variant") == "full")
+        with open(os.path.join(img_full, "page_001.png"), "wb") as f:
+            f.write(b"x")
+
+        # S9: PDF 버전 변경 시 manifest 는 대체된다 (병합하지 않는다)
+        with open(pdf, "wb") as f:
+            f.write(b"%PDF-1.4 fake body v3")
+        st, d = write_manifest(pdf, shared3, [{"name": "new", "dir": "images_desc", "dpi": 300, "tile": None}])
+        chk("S9 버전 변경 후 write", st == "WRITE_OK", st)
+
+        with open(os.path.join(shared3, MANIFEST), encoding="utf-8") as f:
+            m = json.load(f)
+        chk("S9 full 이 제거됨 (대체됨)", "full" not in m.get("variants", {}))
+        chk("S9 desc 가 제거됨 (대체됨)", "desc" not in m.get("variants", {}))
+        chk("S9 new 만 있음", m.get("variants", {}).get("new") is not None)
+
+        # S10: _parse_variant 테스트
+        pv = _parse_variant("name=full,dir=images,dpi=150,tile=none")
+        chk("S10 parse tile=none → None", pv.get("tile") is None)
+        chk("S10 parse dpi → int", pv.get("dpi") == 150 and isinstance(pv.get("dpi"), int))
+
+        # S11-S15: CLI 통합 테스트
+        shared4 = os.path.join(t, "shared4")
+        img4 = os.path.join(shared4, "images")
+        os.makedirs(img4)
+        for i in (1, 2):
+            with open(os.path.join(img4, "page_%03d.png" % i), "wb") as f:
+                f.write(b"x")
+        pdf3 = os.path.join(t, "doc3.pdf")
+        with open(pdf3, "wb") as f:
+            f.write(b"%PDF-1.4 fake body")
+
+        rc = main(["check", "--pdf=%s" % pdf3, "--shared=%s" % shared4])
+        chk("S11 check 명령: manifest 없으면 exit code 3", rc == 3)
+
+        rc = main(["write", "--pdf=%s" % pdf3, "--shared=%s" % shared4,
+                   "--variant=name=full,dir=images,dpi=150,tile=none"])
+        chk("S12 write 명령: 성공하면 exit code 0", rc == 0)
+
+        rc = main(["check", "--pdf=%s" % pdf3, "--shared=%s" % shared4])
+        chk("S13 check 명령: 정상이면 exit code 0", rc == 0)
+
+        with open(pdf3, "wb") as f:
+            f.write(b"%PDF-1.4 fake body changed")
+        rc = main(["check", "--pdf=%s" % pdf3, "--shared=%s" % shared4])
+        chk("S14 check 명령: PDF 변경하면 exit code 2", rc == 2)
+
+        os.remove(os.path.join(img4, "page_002.png"))
+        with open(pdf3, "wb") as f:
+            f.write(b"%PDF-1.4 fake body")
+        rc = main(["check", "--pdf=%s" % pdf3, "--shared=%s" % shared4])
+        chk("S15 check 명령: 파일 손실하면 exit code 4", rc == 4)
+
     print()
     if fails:
         print("selftest FAIL — %d건: %s" % (len(fails), ", ".join(fails)))
         return 1
-    print("selftest PASS — 9건 통과")
+    print("selftest PASS — 21건 통과")
     return 0
 
 
