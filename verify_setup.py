@@ -63,7 +63,9 @@ def check_packages():
 def check_symlinks():
     expected = [
         "figma_api.py", "pdf_to_images.py", "detect_red_regions.py",
-        "check_image_quality.py", "sheets_api.py", "oauth_sheet.py",
+        "detect_strikethrough.py", "check_image_quality.py", "prd_cache.py",
+        "build_brief.py", "read_tc_inventory.py", "verify_sheet_rows.py",
+        "sheets_api.py", "oauth_sheet.py",
     ]
     broken = []
     for name in expected:
@@ -82,16 +84,18 @@ def check_harness_files():
     skills = os.path.join(ROOT, ".claude", "skills")
     agents = os.path.join(ROOT, ".claude", "agents")
     need_skills = ["prd-analyzer", "sheet-operator", "testcase-auto",
-                   "testcase-generator", "testcase-reviewer"]
+                   "testcase-augment", "testcase-generator", "testcase-reviewer"]
     need_agents = ["prd-analyst.md", "sheet-analyst.md",
-                   "testcase-writer.md", "testcase-reviewer.md"]
+                   "testcase-writer.md", "testcase-reviewer.md",
+                   "tc-augmenter.md"]
     miss = [s for s in need_skills if not os.path.isfile(os.path.join(skills, s, "SKILL.md"))]
     miss += [a for a in need_agents if not os.path.isfile(os.path.join(agents, a))]
     if miss:
         record(FAIL, "하네스 구성", "누락: %s" % ", ".join(miss),
                "저장소를 다시 clone 하세요.")
     else:
-        record(OK, "하네스 구성", "스킬 5개 + 에이전트 4개")
+        record(OK, "하네스 구성",
+               "스킬 %d개 + 에이전트 %d개" % (len(need_skills), len(need_agents)))
 
 
 def check_service_account():
