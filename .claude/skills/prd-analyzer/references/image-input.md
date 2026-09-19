@@ -1,5 +1,7 @@
 # 이미지 입력 경로 (IMG-1 ~ IMG-5)
 
+> 경로의 `{WS}`·`{SHARED}` 는 오케스트레이터가 **실제 경로로 치환해 프롬프트에 적어** 준다. 스스로 치환하지 않는다.
+
 > `prd-analyzer` SKILL의 분리된 참조 문서다. **기획서 입력이 이미지 파일·디렉터리일 때에만 읽는다.**
 > 본문 절 번호는 원래 SKILL의 것을 그대로 유지하므로 다른 문서의 상호 참조
 > (예: `prd-analyzer` PDF-3.5)가 그대로 유효하다.
@@ -15,7 +17,7 @@ ls -1 <이미지 디렉터리>            # 파일명 정렬 순서가 페이지
 ```
 
 - 파일명이 페이지 순서를 보장하지 않으면(`1.png, 10.png, 2.png` 등) 사용자에게 순서를 확인한다. 임의로 추정하지 않는다.
-- 이미지가 흩어져 있으면 한 디렉터리(`_workspace/prd_images/<name>/`)로 모아 정렬 가능한 이름으로 복사한다. **원본은 수정·삭제하지 않는다.**
+- 이미지가 흩어져 있으면 한 디렉터리(`{SHARED}/prd_images/<name>/`)로 모아 정렬 가능한 이름으로 복사한다. **원본은 수정·삭제하지 않는다.**
 - Description 패널 크롭이 별도로 제공되면 `<name>_desc/`에 같은 규칙으로 둔다. 없으면 원본 이미지 하나로 UI와 Description을 모두 판독한다 (`pdf_to_images.py --crop-desc`는 PDF 전용이므로 쓰지 않는다).
 
 ### IMG-2. 판독 품질 게이트 (필수)
@@ -32,22 +34,22 @@ ls -1 <이미지 디렉터리>            # 파일명 정렬 순서가 페이지
 |------|------|
 | 페이지 번호 | 파일명 기준으로 부여하고 분석 결과에 파일명을 함께 기록한다 (`p003 (page_003.png)`) |
 | 화면 단위 구분 | 이미지 순서대로 스캔해 화면 식별자를 추출한다. 간지는 처리 단위가 아니라 **소속 간지 라벨**로만 쓴다. 이미지가 이미 화면 단위 디렉터리로 나뉘어 전달됐다면 그 구분을 인덱스 후보로 쓰고 사용자에게 확인받는다 |
-| 확대 판독 | 텍스트가 작아 읽기 어려우면 해당 영역만 크롭해 다시 읽는다 (`_workspace/prd_images/crops/`). 원본을 업스케일해도 정보는 늘지 않으므로 판독 불가는 판독 불가로 기록한다 |
+| 확대 판독 | 텍스트가 작아 읽기 어려우면 해당 영역만 크롭해 다시 읽는다 (`{SHARED}/prd_images/crops/`). 원본을 업스케일해도 정보는 늘지 않으므로 판독 불가는 판독 불가로 기록한다 |
 
 ### IMG-4. 변경분 한정 분석 (해당 시)
 
 기획서 유형이 `변경` 인 경우에만(또는 정책 예외로 변경 정책이 적용되는 화면에만) [PDF-3.5](#pdf-35-변경분-한정-분석-모드)를 그대로 적용한다. `detect_red_regions.py`는 이미지 디렉터리·단일 파일도 입력으로 받으므로 이미지 입력에서도 동일하게 사용할 수 있다 (`--dpi`는 적용되지 않고 원본 해상도를 쓴다).
 
 ```bash
-python scripts/detect_red_regions.py <이미지 디렉터리|파일> --output-dir=_workspace/red_regions
+python scripts/detect_red_regions.py <이미지 디렉터리|파일> --output-dir={SHARED}/red_regions
 
 # 빨강 + 파랑을 함께 쓰는 기획서
-python scripts/detect_red_regions.py <이미지 디렉터리|파일> --color=both --output-dir=_workspace/red_regions
+python scripts/detect_red_regions.py <이미지 디렉터리|파일> --color=both --output-dir={SHARED}/red_regions
 ```
 
 ### IMG-5. 결과 저장
 
-`_workspace/01_prd_analysis_s{NN}.md`에 PDF 경로와 동일 형식으로 저장한다.
+`{WS}/01_prd_analysis_s{NN}.md`에 PDF 경로와 동일 형식으로 저장한다.
 메타정보에 입력 유형(`이미지`), 이미지 디렉터리 경로, 파일 수, 페이지↔파일명 매핑, 화면 ID 원문, 담당 범위, 소속 간지를 기재한다.
 
 ---

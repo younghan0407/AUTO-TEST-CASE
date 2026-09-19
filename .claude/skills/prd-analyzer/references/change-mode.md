@@ -1,5 +1,7 @@
 # 변경분 한정 분석 모드 (PDF-3.5 / IMG-4)
 
+> 경로의 `{WS}`·`{SHARED}` 는 오케스트레이터가 **실제 경로로 치환해 프롬프트에 적어** 준다. 스스로 치환하지 않는다.
+
 > `prd-analyzer` SKILL의 분리된 참조 문서다. **기획서 유형이 `변경` 이거나 그 화면이 변경 정책일 때에만 읽는다.**
 > 본문 절 번호는 원래 SKILL의 것을 그대로 유지하므로 다른 문서의 상호 참조
 > (예: `prd-analyzer` PDF-3.5)가 그대로 유효하다.
@@ -158,10 +160,10 @@ python scripts/detect_strikethrough.py <이미지|디렉터리> --color-only
 
    ```bash
    # 빨강만 쓰는 기획서 (기본값)
-   python scripts/detect_red_regions.py <pdf_path> --pages=START-END --output-dir=_workspace/red_regions
+   python scripts/detect_red_regions.py <pdf_path> --pages=START-END --output-dir={SHARED}/red_regions
 
    # 빨강 + 파랑을 함께 쓰는 기획서
-   python scripts/detect_red_regions.py <pdf_path> --pages=START-END --color=both --output-dir=_workspace/red_regions
+   python scripts/detect_red_regions.py <pdf_path> --pages=START-END --color=both --output-dir={SHARED}/red_regions
    ```
 
    출력: 색별 크롭 이미지(`pNNN_redMM.png` / `pNNN_blueMM.png`) + 영역 좌표·크기 목록.

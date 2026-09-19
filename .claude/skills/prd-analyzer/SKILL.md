@@ -63,7 +63,7 @@ PDF를 요구하거나 되돌려 받으려 하지 않는다. 이미지가 곧 �
 분석 대상 이미지를 읽기 **전에** 판독 품질을 진단한다. 이미지 입력에서는 필수이고, PDF 변환 결과에도 그대로 쓸 수 있다.
 
 ```bash
-python scripts/check_image_quality.py <이미지 디렉터리|파일> --json=_workspace/00_image_quality.json
+python scripts/check_image_quality.py <이미지 디렉터리|파일> --json={SHARED}/00_image_quality.json
 ```
 
 지표: 짧은 변 픽셀(해상도) / 라플라시안 분산(선명도) / 그레이스케일 표준편차(대비) / 파일 끊김(훼손).
@@ -163,11 +163,11 @@ python scripts/check_image_quality.py <이미지 디렉터리|파일> --json=_wo
 PDF 파일을 페이지별 PNG로 변환한다.
 
 ```bash
-python scripts/pdf_to_images.py <pdf_path> [--dpi=150] [--output-dir=_workspace/pdf_images/<name>] [--pages=START-END]
+python scripts/pdf_to_images.py <pdf_path> [--dpi=150] [--output-dir={SHARED}/pdf_images/<name>] [--pages=START-END]
 ```
 
 - 기본 DPI: 150 (텍스트 가독성 충분). 텍스트가 작거나 표·다이어그램이 밀집된 경우 200으로 올린다.
-- 출력 파일: `_workspace/pdf_images/<pdf_basename>/page_001.png`, `page_002.png`, ...
+- 출력 파일: `{SHARED}/pdf_images/<pdf_basename>/page_001.png`, `page_002.png`, ...
 - `pymupdf` 미설치 시 설치 안내 메시지가 출력되고 중단됨.
 - `--pages=START-END`: 변환할 페이지 범위 지정 (1-indexed, 양 끝 포함). 생략 시 전체 변환.
 
@@ -187,10 +187,10 @@ PDF 분석은 **화면 ID(`Screen ID` / `Page ID`) 단위로 순차 처리**한�
 
 | 단계 | 파일명 패턴 | 생성자 |
 |------|-----------|--------|
-| 화면 분석 결과 | `_workspace/01_prd_analysis_s{NN}.md` | prd-analyst |
-| 전체 합본 | `_workspace/01_prd_analysis.md` | 오케스트레이터 (Phase 5) |
+| 화면 분석 결과 | `{WS}/01_prd_analysis_s{NN}.md` | prd-analyst |
+| 전체 합본 | `{WS}/01_prd_analysis.md` | 오케스트레이터 (Phase 5) |
 
-`{NN}` 은 `_workspace/00_screen_index.md` 의 **순번**이다 (예: s01, s02, ...).
+`{NN}` 은 `{WS}/00_screen_index.md` 의 **순번**이다 (예: s01, s02, ...).
 **CH-ID 접두와 혼동하지 않는다** — 기존 탭에 이어 쓰는 경우 둘은 어긋난다.
 
 ### PDF-2. 이미지 변환 전략 (DPI 선택)
@@ -216,12 +216,55 @@ PDF 분석은 **화면 ID(`Screen ID` / `Page ID`) 단위로 순차 처리**한�
 
 **토큰도 함께 줄어든다.** 판독이 안 되면 에이전트가 영역을 다시 잘라 재판독하는데,
 그 왕복이 분할보다 비싸다 — 페이지당 **약 11.5K 토큰 → 약 6.5K 토큰**
-(실측 근거: 화면 34개 실행의 `_workspace/` 에 애드혹 재크롭 이미지 21장이 남아 있었다).
+(실측 근거: 화면 34개 실행의 `{SHARED}/` 에 애드혹 재크롭 이미지 21장이 남아 있었다).
 
 - 변환 후 stderr에 찍히는 **유효배율·한글 예상 px** 을 확인한다. 경고가 뜨면 그대로 진행하지 말고 조각 수를 늘린다
 - 조각 파일명은 `page_NNN_desc_t1.png` ~ `_tN.png` 이며 **위에서 아래 순서**다. 경계에 걸친 줄이 잘리지 않도록 조각 간 겹침(기본 24pt)이 들어 있다
 - **폭이 상한을 넘는 페이지는 세로 분할로 도달할 수 있는 배율에 한계가 있다.** 그 경우 stderr가 `폭이 제약` 이라고 알린다 — 그 페이지에서 특정 문구가 판독되지 않으면 **그 영역만 별도 크롭**한다
 - 전체 페이지(150 DPI)는 UI **배치** 파악용이라 분할하지 않는다. UI 라벨 문자를 읽어야 하면 그 영역만 크롭한다
+
+### PDF-2.5. 이미지 캐시 — 이미 변환된 것이 있으면 다시 만들지 않는다
+
+이미지·검출 결과는 **`{SHARED}/` 에 두고 기획서 분석과 테스트 케이스 작성이
+공유한다.** 같은 PDF·같은 옵션이면 출력이 **바이트까지 동일**하므로(실측)
+재사용이 안전하다. `manifest.json` 의 재사용 판정 키는 **PDF 파일명이 아니라
+PDF 내용의 `sha256` 해시**다 — 파일명이 같아도 내용이 다르면(개정판 교체)
+불일치로 잡히고, 파일명이 달라도 내용이 같으면 같은 캐시로 인정된다.
+
+**착수 전에 반드시 검사한다.**
+
+```bash
+python scripts/prd_cache.py check --pdf=<PDF> --shared={SHARED}
+```
+
+| 결과 | 종료 코드 | 처리 |
+|------|----------|------|
+| `CACHE_OK` | 0 | **변환을 건너뛴다** |
+| `CACHE_MISMATCH` | 2 | **중단하고 사용자에게 알린다.** 다른 판본으로 만든 이미지다 |
+| `CACHE_NO_MANIFEST` | 3 | 페이지 수만 대조하고 **사용자 확인** 후 진행. 진행했다면 분석서에 그 사실을 남긴다 |
+| `CACHE_PARTIAL` | 4 | 부족한 variant 만 다시 변환하고 manifest 를 다시 쓴다 |
+
+부족한 variant 만 다시 써도 **나머지 variant 의 검사는 유지된다** — 같은 PDF
+해시면 manifest 가 병합되기 때문이다.
+
+**`CACHE_MISMATCH` 를 중단으로 두는 이유** — 낡은 판본의 이미지를 읽으면
+**결과물이 정상으로 보이고 검증도 통과하는데 분석만 틀린다.** 누락보다 해롭다.
+
+변환을 마쳤으면 **전량 성공한 뒤에만** manifest 를 쓴다.
+
+```bash
+python scripts/prd_cache.py write --pdf=<PDF> --shared={SHARED} \
+    --variant=name=full,dir=images,dpi=150,tile=none \
+    --variant=name=tiled,dir=images_tiled,dpi=150,tile=auto \
+    --variant=name=desc,dir=images_desc,dpi=200,tile=auto \
+    --page-count=<페이지 수>
+```
+
+`manifest.json` 이 **완료 마커**다. 변환이 중간에 끊긴 디렉터리는 매니페스트가
+없어 캐시로 인정되지 않는다 — 이 장치가 없으면 **페이지가 조용히 빠진다.**
+
+색 검출·취소선 검출·판독 품질 결과도 이미지의 결정적 함수이므로 같은 규칙으로
+`{SHARED}/` 에서 재사용한다.
 
 ### PDF-3. 이미지 시각 분석
 
@@ -243,7 +286,7 @@ Description 패널(`page_NNN_desc.png`)을 먼저 읽어 모든 항목을 추출
 **공통 Description 감지 (담당 화면 분석 후):**
 
 담당 화면의 페이지 분석이 끝난 뒤, Description 항목을 **C-ID 레지스터
-(`_workspace/00_cid_register.md`)와 대조**한다.
+(`{WS}/00_cid_register.md`)와 대조**한다.
 
 - 레지스터에 이미 있는 정의와 일치하면 **그 C-ID를 그대로 쓴다** — 다른 화면이 먼저 썼더라도
   같은 정의면 같은 번호다. 그것이 이 태그의 본래 용도다
@@ -335,7 +378,7 @@ Description 패널(`page_NNN_desc.png`)을 먼저 읽어 모든 항목을 추출
 
 ### PDF-4. 결과 저장
 
-Figma 경로와 동일한 형식으로 `_workspace/01_prd_analysis_s{NN}.md`에 저장.
+Figma 경로와 동일한 형식으로 `{WS}/01_prd_analysis_s{NN}.md`에 저장.
 메타정보에 입력 유형(`PDF`), 원본 파일명, **화면 ID 원문 · CH-ID 접두 · 담당 페이지 범위 · 소속 간지**, 전체 이미지 경로, Description 크롭 이미지 경로와 함께 **Phase 0에서 받은 제품 유형·기획서 유형·분석 정책(기본 + 예외 화면 목록) + 이 화면에 적용한 정책** 을 추가한다.
 각 기능 단위에 화면 식별자(`Page ID` 또는 `Screen ID`) 목록을 포함한다. 메타정보에 식별자 출처 필드명을 명시한다.
 
@@ -359,7 +402,7 @@ PDF·Figma 입력에서는 읽지 않는다.
 
 ## 산출물 체크리스트
 
-- [ ] `_workspace/01_prd_analysis_s{NN}.md` 생성됨 (인덱스 순번 사용)
+- [ ] `{WS}/01_prd_analysis_s{NN}.md` 생성됨 (인덱스 순번 사용)
 - [ ] 메타정보에 화면 ID 원문 · CH-ID 접두 · 담당 페이지 범위 · 소속 간지 · 적용 정책 기록됨
 - [ ] 메타정보에 **제품 유형 / 기획서 유형 / 분석 정책(기본·예외 화면 목록)** 기록됨
 - [ ] 메타정보에 화면 식별자 출처(`Page ID` / `Screen ID` / 기타) 기록됨

@@ -26,6 +26,22 @@ AUGMENT=(.claude/skills/testcase-augment/SKILL.md
          .claude/skills/testcase-generator/references/exception-catalog.md
          .claude/skills/testcase-generator/references/permission-mode.md
          .claude/skills/testcase-reviewer/references/augment-mode.md)
+ORCH=(.claude/skills/testcase-auto/SKILL.md
+      .claude/skills/testcase-augment/SKILL.md)
+# _workspace 문자열이 한 번도 나오면 안 되는 파일들 (루트 정의는 ORCH 에만 둔다)
+NOWS=(.claude/agents/prd-analyst.md
+      .claude/agents/testcase-writer.md
+      .claude/agents/testcase-reviewer.md
+      .claude/agents/sheet-analyst.md
+      .claude/agents/tc-augmenter.md
+      .claude/skills/prd-analyzer/SKILL.md
+      .claude/skills/prd-analyzer/references/image-input.md
+      .claude/skills/prd-analyzer/references/change-mode.md
+      .claude/skills/prd-analyzer/references/figma.md
+      .claude/skills/testcase-generator/SKILL.md
+      .claude/skills/testcase-reviewer/SKILL.md
+      .claude/skills/testcase-reviewer/references/augment-mode.md
+      .claude/formats/common.md)
 CORE=("${SKILLS[@]}" "${AGENTS[@]}" "${FORMATS[@]}")
 CORE=("${CORE[@]}" "${AUGMENT[@]}")
 
@@ -241,6 +257,12 @@ present  "한 장 요약에 커버리지 분모 명시" '분모는 제품이 아
 
 echo "── CLI 명령 오표기 가드 ───────────────────────────────────"
 absent "get_metadata 셸 명령 표기" 'sheets_api\.py get_metadata' "${CORE[@]}" "${DOCS[@]}"
+
+echo "── 작업 디렉터리 재편 (2026-09-19) ────────────────────────"
+present "이미지 재사용 manifest 대조" 'manifest\.json' \
+        .claude/skills/prd-analyzer/SKILL.md
+present "manifest 키는 PDF 내용 해시"  'sha256' \
+        .claude/skills/prd-analyzer/SKILL.md
 
 echo
 if [ "$fail" -eq 0 ]; then
