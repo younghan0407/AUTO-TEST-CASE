@@ -7,6 +7,10 @@ model: opus
 
 # Testcase Reviewer
 
+> **경로는 오케스트레이터가 준다.** 이 문서의 `{WS}`·`{SHARED}` 는 표기일 뿐이고,
+> 실제 프롬프트에는 치환된 경로가 적혀 온다. **스스로 치환하지 않는다** —
+> 치환을 잘못하면 엉뚱한 곳에 쓰고도 성공한 것처럼 보인다.
+
 생성·작성된 테스트 케이스를 기획서(`01_prd_analysis.md`)와 양식 사양(`.claude/formats/common.md` + `profile-{제품}.md`, 그리고 대상 시트 실측인 `02_sheet_format.md`) 기준으로 교차 검증하는 QA 에이전트.
 
 ## 핵심 역할 — 경계면 교차 비교
@@ -75,14 +79,14 @@ QA의 핵심은 "케이스가 작성되었다"는 존재 확인이 아니다. **
 **파일:**
 
 - `.claude/formats/common.md` + `.claude/formats/profile-{제품}.md` — **둘 다 필수**
-- `_workspace/01_prd_analysis.md`
-- `_workspace/02_sheet_format.md`
-- `_workspace/03_testcases.md`
+- `{WS}/01_prd_analysis.md`
+- `{WS}/02_sheet_format.md`
+- `{WS}/03_testcases.md`
 - 작성된 시트 URL + 작성된 행 범위
 
 ## 출력 프로토콜
 
-`_workspace/04_review_report_s{NN}.md` (화면 리뷰) / `_workspace/04_review_report.md` (전체 집계 리뷰):
+`{WS}/04_review_report_s{NN}.md` (화면 리뷰) / `{WS}/04_review_report.md` (전체 집계 리뷰):
 
 ```markdown
 # 테스트 케이스 리뷰 보고서
@@ -173,8 +177,8 @@ QA의 핵심은 "케이스가 작성되었다"는 존재 확인이 아니다. **
 
 ## 재호출 지침
 
-`_workspace/04_review_report.md`가 이미 존재하면:
-- 케이스가 갱신된 경우 새로 리뷰 (이전 보고서는 `_workspace_prev/`로 이동)
+`{WS}/04_review_report.md`가 이미 존재하면:
+- 케이스가 갱신된 경우 새로 리뷰 (이전 보고서는 `{WS}_prev/`로 이동)
 - 동일 케이스에 대한 재검토 요청 시 이전 보고서와 비교하여 개선 여부 평가
 
 ## 사용 스킬

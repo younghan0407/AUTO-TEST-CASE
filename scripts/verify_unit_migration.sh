@@ -263,6 +263,10 @@ present "이미지 재사용 manifest 대조" 'manifest\.json' \
         .claude/skills/prd-analyzer/SKILL.md
 present "manifest 키는 PDF 내용 해시"  'sha256' \
         .claude/skills/prd-analyzer/SKILL.md
+present "에이전트는 치환된 실제 경로를 받는다" '스스로 치환하지 않는다' \
+        .claude/agents/prd-analyst.md .claude/agents/testcase-writer.md \
+        .claude/agents/testcase-reviewer.md .claude/agents/sheet-analyst.md \
+        .claude/agents/tc-augmenter.md
 
 echo
 if [ "$fail" -eq 0 ]; then
