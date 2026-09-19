@@ -53,7 +53,7 @@
 | `.claude/skills/testcase-reviewer/SKILL.md` · `testcase-generator/SKILL.md` · `references/augment-mode.md` · `.claude/formats/common.md` | `{WS}` 치환 |
 | `.claude/skills/testcase-auto/SKILL.md` | 루트 정의 · Phase 0 신설 2항 · 0-5 재작성 · 1-A 캐시 분기 |
 | `.claude/skills/testcase-augment/SKILL.md` | `{WS}` = `_workspace/augment` 정의 + 치환 |
-| `scripts/verify_unit_migration.sh` | 회귀 가드 7개 |
+| `scripts/verify_unit_migration.sh` | 회귀 가드 8개 |
 | `verify_setup.py` | `prd_cache.py` 링크 검사 |
 | 사용자 문서 7종 · `CLAUDE.md` | 예시 경로 갱신 · 변경 이력 |
 

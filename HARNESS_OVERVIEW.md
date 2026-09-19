@@ -112,7 +112,7 @@ testcase-auto/
 └── _workspace/                   # 실행 산출물 (gitignore)
     ├── VIOLA-K8s_4.0_v1/         #   {제품}_{제품버전}_{문서회차} — Phase 0에서 확정
     │   ├── shared/               #     이미지·검출 결과 + manifest.json (절차끼리 공용)
-    │   ├── digest/               #     기획서 분석 (prd-digest)
+    │   ├── digest/               #     기획서 분석 (prd-digest) — 예정 (별도 스펙)
     │   └── testcase/             #     테스트 케이스 산출물
     └── augment/                  #   추가 작업 (원천이 시트라 제품·버전 폴더 밖)
 ```

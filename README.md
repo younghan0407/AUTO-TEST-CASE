@@ -147,7 +147,7 @@ verify_setup.py    세팅 점검 스모크 테스트
 _workspace/        실행 산출물 (커밋 제외)
   VIOLA-K8s_4.0_v1/        제품·제품버전·문서회차 단위 작업 디렉터리
     shared/                  이미지·변경 표시 검출 결과 + manifest.json (절차끼리 공용)
-    digest/                  기획서 분석 산출물
+    digest/                  기획서 분석 산출물 — 예정 (별도 스펙)
     testcase/                테스트 케이스 산출물 (01_/02_/03_/04_)
   augment/                 추가 작업 (원천이 시트라 제품·버전 폴더 밖)
 ```

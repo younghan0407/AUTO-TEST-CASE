@@ -115,7 +115,7 @@ Phase 6  피드백 수집 → 하네스 진화 (harness 메타 스킬)
 _workspace/
 ├── VIOLA-K8s_4.0_v1/          ← {제품}_{제품버전}_{문서회차}. Phase 0 (6)에서 확정
 │   ├── shared/                ← 이미지 · 색 검출 · 취소선 · 판독 품질 + manifest.json
-│   ├── digest/                ← 기획서 분석 (prd-digest)
+│   ├── digest/                ← 기획서 분석 (prd-digest) — 예정 (별도 스펙)
 │   └── testcase/              ← 이 절차의 산출물 (00_/01_/02_/03_/04_)
 └── augment/                   ← testcase-augment (원천이 시트라 제품·버전 폴더 밖)
 ```

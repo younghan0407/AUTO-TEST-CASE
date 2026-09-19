@@ -159,7 +159,7 @@ Phase 2~4는 배치마다 도는 루프다. **시트 쓰기가 루프 안에 있
 _workspace/
 ├── VIOLA-K8s_4.0_v1/          ← {제품}_{제품버전}_{문서회차}
 │   ├── shared/                ← 이미지 · 색 검출 · 취소선 · 판독 품질 + manifest.json
-│   ├── digest/                ← 기획서 분석 (prd-digest)
+│   ├── digest/                ← 기획서 분석 (prd-digest) — 예정 (별도 스펙)
 │   └── testcase/              ← 이 절차의 산출물
 └── augment/                   ← testcase-augment (제품·버전 폴더 밖)
 ```
