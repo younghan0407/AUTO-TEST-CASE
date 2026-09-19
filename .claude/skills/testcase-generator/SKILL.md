@@ -5,7 +5,7 @@ description: Figma 기획서 분석 결과와 팀 시트 양식을 입력으로 
 
 # Testcase Generator
 
-기획서 분석(`_workspace/01_prd_analysis.md`)과 팀 양식 사양(`.claude/formats/common.md` + `profile-{제품}.md` + `_workspace/02_sheet_format.md`)을 입력으로, 팀이 그대로 사용할 수 있는 테스트 케이스 행 집합을 생성한다.
+기획서 분석(`{WS}/01_prd_analysis.md`)과 팀 양식 사양(`.claude/formats/common.md` + `profile-{제품}.md` + `{WS}/02_sheet_format.md`)을 입력으로, 팀이 그대로 사용할 수 있는 테스트 케이스 행 집합을 생성한다.
 
 > **양식은 항상 두 파일을 함께 읽는다.** `common.md`(공통 골격 — 컬럼 23개·`-` vs 빈칸·태그 체계·
 > C-ID/CH-ID·변경분 모드) + 해당 제품 프로파일(`profile-viola.md` / `profile-trombone.md` /
@@ -19,10 +19,10 @@ description: Figma 기획서 분석 결과와 팀 시트 양식을 입력으로 
 
 ## 사전 조건
 
-1. `_workspace/01_prd_analysis.md` 존재 — 없으면 `prd-analyst`를 먼저 실행하라고 보고
+1. `{WS}/01_prd_analysis.md` 존재 — 없으면 `prd-analyst`를 먼저 실행하라고 보고
 2. **양식 기준 확보** — 참고 시트 전수 분석은 필수가 아니다.
    - **`.claude/formats/common.md` + 제품 프로파일** (권장·기본) — 커밋된 양식 사양. 참고 시트 없이 시작 가능
-   - `_workspace/02_sheet_format.md` — `sheet-analyst`가 위 두 파일을 로드해 대상 시트와 대조한 결과
+   - `{WS}/02_sheet_format.md` — `sheet-analyst`가 위 두 파일을 로드해 대상 시트와 대조한 결과
    - 사양 파일을 못 찾으면 `sheet-analyst`를 먼저 실행하라고 보고 (임의로 양식을 추정하지 않는다)
 3. 대상 구글 시트의 **마지막 케이스 ID** (충돌 방지용) — 사양에는 없다. 대상 시트 실측값을 쓴다
 4. **생성 모드** 결정 — 아래 "0. 생성 모드 선택" 참고
@@ -426,8 +426,8 @@ Phase 0에서 받은 **예외 항목 목록**은 *문서 기본 정책과 반대
 
 | 파일 | 내용 | 읽는 주체 |
 |------|------|----------|
-| `_workspace/03_testcases_s{NN}.md` | 메타 + 요약 + **근거 매핑 표** (케이스 본문 없음) | 사용자·리뷰어 |
-| `_workspace/03_rows_s{NN}.tsv` | 시트에 쓴 23컬럼 **원본 그대로** (탭 구분, 헤더 없음) | 스크립트 전용 |
+| `{WS}/03_testcases_s{NN}.md` | 메타 + 요약 + **근거 매핑 표** (케이스 본문 없음) | 사용자·리뷰어 |
+| `{WS}/03_rows_s{NN}.tsv` | 시트에 쓴 23컬럼 **원본 그대로** (탭 구분, 헤더 없음) | 스크립트 전용 |
 
 ### 왜 케이스 본문을 `.md` 에 중복 저장하지 않는가
 
@@ -447,7 +447,7 @@ Phase 0에서 받은 **예외 항목 목록**은 *문서 기본 정책과 반대
 - 대상 시트 / 탭 / **작성 행 범위**
 - 제품 유형 / 프로파일 · 기획서 유형 · 이 화면의 정책 · 생성 모드
 - 생성 케이스 수 (**실측 카운트**) · TC ID 범위 · `No` 범위 · CH-ID 접두 · 사용 C-ID
-- 로컬 원본: `_workspace/03_rows_s{NN}.tsv`
+- 로컬 원본: `{WS}/03_rows_s{NN}.tsv`
 
 ## 케이스 요약 (구분별 — 실측 카운트)
 | 구분 | 개수 |

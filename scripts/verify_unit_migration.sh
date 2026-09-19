@@ -267,6 +267,7 @@ present "에이전트는 치환된 실제 경로를 받는다" '스스로 치환
         .claude/agents/prd-analyst.md .claude/agents/testcase-writer.md \
         .claude/agents/testcase-reviewer.md .claude/agents/sheet-analyst.md \
         .claude/agents/tc-augmenter.md
+absent "에이전트·비오케스트레이터 문서의 _workspace 하드코딩" '_workspace' "${NOWS[@]}"
 
 echo
 if [ "$fail" -eq 0 ]; then
