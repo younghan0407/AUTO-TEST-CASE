@@ -200,8 +200,8 @@ PDF 분석은 **화면 ID(`Screen ID` / `Page ID`) 단위로 순차 처리**한�
 
 | 변환 대상 | DPI | 명령 | 용도 |
 |----------|-----|------|------|
-| 전체 페이지 | 150 | `python scripts/pdf_to_images.py <pdf> --dpi=150` | UI 배치 파악, 화면 인벤토리, 플로우 추론 |
-| Description 패널 크롭 | 200 | `python scripts/pdf_to_images.py <pdf> --crop-desc --dpi=200 --tile=auto` | Description 텍스트 정밀 판독 (최우선 분석 소스) |
+| 전체 페이지 | 150 | `python scripts/pdf_to_images.py <pdf> --dpi=150 --output-dir={SHARED}/images` | UI 배치 파악, 화면 인벤토리, 플로우 추론 |
+| Description 패널 크롭 | 200 | `python scripts/pdf_to_images.py <pdf> --crop-desc --dpi=200 --tile=auto --output-dir={SHARED}/images_desc` | Description 텍스트 정밀 판독 (최우선 분석 소스) |
 
 스펙 페이지(Description 패널이 있는 페이지)는 반드시 크롭 이미지를 먼저 읽어 Description을 추출한 뒤, 전체 이미지로 UI를 보완한다.
 
