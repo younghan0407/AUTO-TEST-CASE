@@ -39,12 +39,14 @@ mkdir -p docs && cp "$SRC/docs/PROMPTS.md" docs/
 | `.claude/skills/` | 오케스트레이터 2 + 실무 스킬 4 (`testcase-auto` · `testcase-augment` · `prd-analyzer` · `sheet-operator` · `testcase-generator` · `testcase-reviewer`) | 트리거가 동작하지 않음 |
 | `.claude/agents/` | `prd-analyst` · `sheet-analyst` · `testcase-writer` · `testcase-reviewer` · `tc-augmenter` | 실행 주체가 없음 |
 | `.claude/formats/` | `common.md` + 제품 프로파일 3종 | **양식 원천이 사라져 케이스를 쓸 수 없음** |
-| `scripts/` | 루트 실행용 심볼릭 링크 10 + `verify_unit_migration.sh` | 스킬이 안내하는 경로가 깨짐 |
+| `scripts/` | 루트 실행용 심볼릭 링크 11 + `verify_unit_migration.sh` | 스킬이 안내하는 경로가 깨짐 |
 | `CLAUDE.md` | 트리거 규칙 + 변경 이력 | 하네스가 호출되지 않음 |
 | `verify_setup.py` · `requirements.txt` | 세팅 검증·의존성 | 설정 오류를 첫 실행에서야 발견 |
 
 **`_workspace/` · `.credentials/` · `PDF/` · `img/` 는 복사하지 않습니다.** 산출물과 자격증명이고,
-새 프로젝트에서는 새로 만들어집니다.
+새 프로젝트에서는 새로 만들어집니다. `_workspace/` 아래는 **제품·제품버전·문서회차 단위**
+(`_workspace/VIOLA-K8s_4.0_v1/` 등)로 서고 그 안이 `shared/`·`digest/`·`testcase/` 로 갈리는데,
+이 구조는 첫 실행에서 자동으로 만들어지므로 미리 준비할 것이 없습니다.
 
 ---
 

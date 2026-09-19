@@ -63,7 +63,7 @@
 ## 2. 전체 실행 흐름 (Phase 0 → 6)
 
 ```
-Phase 0  기본 정보 수집 ──────── ★ 필수 게이트: 5개 항목 확정 (추정 금지)
+Phase 0  기본 정보 수집 ──────── ★ 필수 게이트: 7개 항목 확정 (추정 금지)
                                 환경변수 · 실행 모드 결정 · 확정값 요약 · 시트 공유 안내
 Phase 1  사전 준비
          ├ 1-A   이미지 준비 (PDF는 변환 / 이미지는 그대로)  ┐
@@ -86,7 +86,7 @@ Phase 6  피드백 수집 → 하네스 진화 (harness 메타 스킬)
 
 ### Phase 0 — 기본 정보 수집 + 컨텍스트 확인
 
-**분석에 착수하기 전에 5개 항목을 물어 확정한다. 추정 금지** — 잘못 추정한 항목 하나가 전 행에 박힌다. 요청에 이미 적혀 있는 항목은 다시 묻지 않고 **확인만** 한다.
+**분석에 착수하기 전에 7개 항목을 물어 확정한다((1)~(6) 필수, (7) 선택). 추정 금지** — 잘못 추정한 항목 하나가 전 행에 박힌다. 요청에 이미 적혀 있는 항목은 다시 묻지 않고 **확인만** 한다.
 
 | # | 항목 | 값 | 무엇에 쓰이는가 |
 |---|------|-----|---------------|
@@ -95,6 +95,8 @@ Phase 6  피드백 수집 → 하네스 진화 (harness 메타 스킬)
 | 3 | **예외 항목** | 문서 기본 정책과 **반대**로 작성할 화면 ID 목록 (없으면 "없음") | 그 화면만 반대 정책. **적용 시점은 분석 단계** |
 | 4 | **기획서 경로** | Figma URL / PDF / 이미지 파일·디렉터리 | 입력 경로 분기 |
 | 5 | **테스트 케이스 경로·탭** | 대상 시트 URL + 탭(`신규` 생성 / `기존` 사용) | 작성처. `신규`면 탭명, `기존`이면 기존 탭명을 함께 받는다 |
+| 6 | **작업 디렉터리명** | `{제품}_{제품버전}_{문서회차}` (예 `VIOLA-K8s_4.0_v1`) | 산출물이 놓일 자리. **파일명에서 자동으로 만들지 않는다** — 제품 버전과 문서 회차는 축이 다르다 |
+| 7 | **이미 변환된 이미지 경로** (선택) | `shared` 디렉터리 경로 | 값이 있으면 **1-A 변환을 건너뛴다**(검사는 반드시 한다). 이후 `shared/` 기준 경로가 전부 이 값이 된다 |
 
 **부가 확인 항목** — 기본값이 있으면 묻지 않고 적용 후 보고한다.
 
@@ -107,16 +109,32 @@ Phase 6  피드백 수집 → 하네스 진화 (harness 메타 스킬)
 
 **묻지 말아야 할 것 — 변경 표시색.** 색은 사용자 진술보다 스크립트 실측이 정확하다. 1-A-3에서 확정한다. (2026-09-01 실측: 사용자가 알려준 파랑 후보 21건이 **전부 오탐**)
 
+**작업 디렉터리** — (6)에서 확정한 이름으로 만들어진다. 이 문서의 예시 경로는 전부 이 구조를 따른다.
+
+```
+_workspace/
+├── VIOLA-K8s_4.0_v1/          ← {제품}_{제품버전}_{문서회차}. Phase 0 (6)에서 확정
+│   ├── shared/                ← 이미지 · 색 검출 · 취소선 · 판독 품질 + manifest.json
+│   ├── digest/                ← 기획서 분석 (prd-digest)
+│   └── testcase/              ← 이 절차의 산출물 (00_/01_/02_/03_/04_)
+└── augment/                   ← testcase-augment (원천이 시트라 제품·버전 폴더 밖)
+```
+
+`shared/` 는 **절차끼리 공용**이다 — 이미지를 기획서 분석과 케이스 작성이 같이 쓰기 때문에
+어느 한쪽 안에 두지 않는다. 재실행 백업에서도 옮기지 않아 같은 판본이면 변환이 재사용된다
+(181페이지 전체 변환 약 10분). **경로 규칙의 단일 출처는 `testcase-auto` SKILL 의 `0-0` 절**이며,
+스킬·에이전트 문서는 `{WS}`·`{SHARED}` 변수로만 지칭하고 에이전트에게는 치환된 실제 경로를 넘긴다.
+
 그 밖에 Phase 0이 하는 일:
 
 1. **환경변수 검증** — `GOOGLE_APPLICATION_CREDENTIALS`(필수), `FIGMA_ACCESS_TOKEN`(Figma 입력일 때만). 누락 시 안내 후 중단.
 2. **확정값 요약 보고** — 수집이 끝나면 표로 되보여 준 뒤 진행한다. 사용자가 오타·오해를 잡을 마지막 지점이다.
-3. **실행 모드 결정** — `_workspace/` 존재 여부와 사용자 요청을 조합해 4가지로 분기한다.
+3. **실행 모드 결정** — 작업 디렉터리의 `testcase/` 존재 여부와 사용자 요청을 조합해 4가지로 분기한다.
 
 | 상황 | 모드 | 동작 |
 |------|------|------|
-| `_workspace/` 없음 | 초기 실행 | Phase 1부터 전체 |
-| 있음 + "다시/재실행" | 새 실행 | 기존을 `_workspace_prev_{설명}_{날짜}/`로 이동 후 처음부터 |
+| `testcase/` 없음 | 초기 실행 | Phase 1부터 전체 |
+| 있음 + "다시/재실행" | 새 실행 | 기존을 `testcase_prev_{설명}_{날짜}/`로 이동 후 처음부터. **`shared/` 는 제자리에 남긴다** |
 | 있음 + "화면 N만 보완" | 부분 재실행 | 인덱스에서 순번 특정, 해당 화면 에이전트만 호출, 나머지 산출물 재사용 |
 | 있음 + 변경 없음 | 이어 실행 | 미완료 단계부터 |
 
@@ -126,26 +144,42 @@ Phase 6  피드백 수집 → 하네스 진화 (harness 메타 스킬)
 
 **1-A. 이미지 준비**
 
-PDF 입력이면 페이지를 두 벌로 만든다.
+PDF 입력이면 페이지를 두 벌로 만든다. **변환 전에 캐시를 먼저 검사한다** — 같은 판본의 이미지가
+이미 `shared/` 에 있으면 변환을 건너뛴다(같은 PDF·같은 옵션이면 출력이 SHA-256 까지 동일하다).
+
+```bash
+# ⓪ 캐시 검사 — CACHE_OK 면 변환을 건너뛰고 1-A-2 로 간다
+python scripts/prd_cache.py check --pdf=<pdf> --shared=_workspace/VIOLA-K8s_4.0_v1/shared
+```
+
+판정은 `CACHE_OK`(건너뜀) / `CACHE_MISMATCH`(**중단** — 다른 판본으로 만든 이미지다) /
+`CACHE_NO_MANIFEST`(페이지 수만 대조 + 사용자 확인) / `CACHE_PARTIAL`(부족한 것만 변환)이다.
+**캐시를 재사용한 경우에도 DESC 조각 파일 목록은 똑같이 화면 에이전트에 넘긴다** — 이 전달이
+빠지면 분석 담당이 전체 페이지(150 DPI)만 읽어 한글 1자가 9.9px 로 도착하는 그 상태가 된다.
 
 ```bash
 # ① 전체 페이지 150 DPI — UI 화면 파악용
-python scripts/pdf_to_images.py <pdf> --dpi=150 --output-dir=_workspace/pdf_images/<name>
+python scripts/pdf_to_images.py <pdf> --dpi=150 --output-dir=_workspace/VIOLA-K8s_4.0_v1/shared/images
 
 # ② Description 패널 크롭 200 DPI + 판독용 세로 분할 (--tile=auto 필수)
-python scripts/pdf_to_images.py <pdf> --crop-desc --dpi=200 --tile=auto --output-dir=_workspace/pdf_images/<name>_desc
+python scripts/pdf_to_images.py <pdf> --crop-desc --dpi=200 --tile=auto --output-dir=_workspace/VIOLA-K8s_4.0_v1/shared/images_desc
+
+# ③ 전량 성공한 뒤에만 manifest 를 쓴다 (완료 마커)
+python scripts/prd_cache.py write --pdf=<pdf> --shared=_workspace/VIOLA-K8s_4.0_v1/shared \
+    --variant=name=full,dir=images,dpi=150,tile=none \
+    --variant=name=desc,dir=images_desc,dpi=200,tile=auto --page-count=<페이지 수>
 ```
 
-**`--tile=auto` 를 빼면 DPI를 올린 의미가 없다.** 이미지는 모델 전달 시 **긴 변 1568px · 총 115만 픽셀** 안으로 축소되므로 올린 DPI가 상한에서 버려진다 — 실측으로 DESC 크롭 200 DPI(3525×5298)는 874×1314로 도착해 **한글 본문 1자가 9.9px** 이 되고 판독이 안 된다. 4분할하면 조각당 1568×589로 도착해 **17.8px** 가 된다. 판독이 안 되면 에이전트가 영역을 다시 잘라 재판독하는데 그 왕복이 분할보다 비싸다 — **페이지당 약 11.5K → 약 6.5K 토큰**(실측 근거: 화면 34개 실행의 `_workspace/` 에 애드혹 재크롭 21장). 조각명은 `page_NNN_desc_t1.png`~`_tN.png`(위→아래, 경계 겹침 24pt). 폭이 상한을 넘는 페이지는 세로 분할의 한계가 있어 stderr가 `폭이 제약` 이라고 알린다.
+**`--tile=auto` 를 빼면 DPI를 올린 의미가 없다.** 이미지는 모델 전달 시 **긴 변 1568px · 총 115만 픽셀** 안으로 축소되므로 올린 DPI가 상한에서 버려진다 — 실측으로 DESC 크롭 200 DPI(3525×5298)는 874×1314로 도착해 **한글 본문 1자가 9.9px** 이 되고 판독이 안 된다. 4분할하면 조각당 1568×589로 도착해 **17.8px** 가 된다. 판독이 안 되면 에이전트가 영역을 다시 잘라 재판독하는데 그 왕복이 분할보다 비싸다 — **페이지당 약 11.5K → 약 6.5K 토큰**(실측 근거: 화면 34개 실행의 작업 디렉터리에 애드혹 재크롭 21장). 조각명은 `page_NNN_desc_t1.png`~`_tN.png`(위→아래, 경계 겹침 24pt). 폭이 상한을 넘는 페이지는 세로 분할의 한계가 있어 stderr가 `폭이 제약` 이라고 알린다.
 
 크롭은 각 페이지의 **우측 47% 영역**(`_DESC_X_RATIO`)을 잘라낸다. 기획서 스펙 페이지가 "좌측 UI 화면 + 우측 Description 패널" 구조라는 전제에 맞춘 값이다. 출력은 `page_001.png` / `page_001_desc.png` 형식.
 
-**이미지 입력이면 변환 단계를 찾지 말고 그 이미지를 원천으로 곧바로 진행한다.** 크롭은 만들지 않고(`--crop-desc`는 PDF 전용) 원본 한 장에서 Description을 먼저 판독한 뒤 UI를 본다. 파일명 정렬이 페이지 순서와 다르면(`1.png, 10.png, 2.png`) 사용자에게 순서를 확인한다(추정 금지). 흩어진 이미지는 `_workspace/prd_images/<name>/`에 정렬 가능한 이름으로 모으고 **원본은 수정·삭제하지 않는다**. 이미지와 동일 내용 PDF가 함께 있으면 PDF를 원천으로 쓴다.
+**이미지 입력이면 변환 단계를 찾지 말고 그 이미지를 원천으로 곧바로 진행한다.** 크롭은 만들지 않고(`--crop-desc`는 PDF 전용) 원본 한 장에서 Description을 먼저 판독한 뒤 UI를 본다. 파일명 정렬이 페이지 순서와 다르면(`1.png, 10.png, 2.png`) 사용자에게 순서를 확인한다(추정 금지). 흩어진 이미지는 `shared/prd_images/<name>/`에 정렬 가능한 이름으로 모으고 **원본은 수정·삭제하지 않는다**. 이미지와 동일 내용 PDF가 함께 있으면 PDF를 원천으로 쓴다.
 
 **1-A-2. 판독 품질 게이트** (이미지 입력 시 필수. PDF도 변환 결과가 흐리면 실행)
 
 ```bash
-python scripts/check_image_quality.py <이미지 디렉터리|파일> --json=_workspace/00_image_quality.json
+python scripts/check_image_quality.py <이미지 디렉터리|파일> --json=_workspace/VIOLA-K8s_4.0_v1/shared/00_image_quality.json
 ```
 
 `불가` 판정이 있으면 종료 코드 `2`다. `OK`는 진행 / `주의`는 **사용자 통보 후** 진행(해당 페이지 목록·사유를 화면 에이전트에 전달) / `불가`는 통보 + 원본 재전달 요청, 그대로 진행하면 그 페이지는 추측 없이 판독 불가 케이스로 남긴다. **사용자 통보는 의무다** — 판독이 안 되는 페이지를 조용히 스킵하는 것이 누락의 원천이다. `주의`가 다수면 DPI를 200으로 올려 재변환한다.
@@ -159,10 +193,10 @@ python scripts/check_image_quality.py <이미지 디렉터리|파일> --json=_wo
 python scripts/detect_red_regions.py <입력> --color=both --no-crops
 
 # 본 검출 (--color 기본값은 red. 파랑 포함 시 메타 파일명은 change_regions.json)
-python scripts/detect_red_regions.py <입력> --color=both --output-dir=_workspace/red_regions
+python scripts/detect_red_regions.py <입력> --color=both --output-dir=_workspace/VIOLA-K8s_4.0_v1/shared/red_regions
 
 # 취소선(삭제 표기) 후보 — 색 검출로는 잡히지 않는다
-python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/strikethrough.json
+python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/VIOLA-K8s_4.0_v1/shared/strikethrough.json
 ```
 
 - 출력은 **후보**다. 오탐(필수 `*`, 원형 번호 배지, 에러 아이콘, 실패 badge, 삭제 버튼, 차트 색, **페이지 외곽 아트보드 프레임**, 파랑의 경우 링크·기본 버튼·선택 탭·간지 배경)이 섞여 있어 각 화면의 `prd-analyst`가 육안으로 확정한다.
@@ -180,7 +214,7 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 - 공통 DESC 후보에는 **C-ID를 선발급**한다. 화면 단위 즉시 작성은 정의상 순차 배정이므로 번호가 **루프 이전에** 확정돼 있어야 한다(챕터 시절 규칙은 "전 챕터 분석 후 일괄 배정"이었고, 순차 배정이 `C5` 12행 충돌의 직접 원인이었다).
 - C-ID는 소진되는 순번이 아니라 **정의를 잇는 공유 키**다. 같은 정의면 화면이 달라도 같은 번호. **연결 판정 근거는 기획서의 상호 참조뿐**이며, 일자·회차·내용이 같아도 상호 참조가 없으면 병렬 변경으로 두고 연결하지 않는다. 「연결 근거」가 빈 항목은 레지스터에 올리지 않는다.
 
-**1-C. 사용자 확인 게이트 (필수)** — 화면 인덱스 + 화면 수 + 예상 사이클(`3N+1`: 화면마다 분석·생성·리뷰 3회 + Phase 5 집계 리뷰 1회)을 보여주고 OK를 받을 때까지 수정·재확인을 반복한다. **제외한 페이지와 판독 불가 항목도 반드시 함께 보여준다** — 조용히 빠진 페이지가 누락의 원천이다. 확정본만 `_workspace/00_screen_index.md`에 저장된다. 화면 수가 많으면(50개 초과 등) 사이클 수를 알리고 범위 축소 여부를 확인한다. **Phase 0에 이어 두 번째 우회 불가 게이트다.**
+**1-C. 사용자 확인 게이트 (필수)** — 화면 인덱스 + 화면 수 + 예상 사이클(`3N+1`: 화면마다 분석·생성·리뷰 3회 + Phase 5 집계 리뷰 1회)을 보여주고 OK를 받을 때까지 수정·재확인을 반복한다. **제외한 페이지와 판독 불가 항목도 반드시 함께 보여준다** — 조용히 빠진 페이지가 누락의 원천이다. 확정본만 `testcase/00_screen_index.md`에 저장된다. 화면 수가 많으면(50개 초과 등) 사이클 수를 알리고 범위 축소 여부를 확인한다. **Phase 0에 이어 두 번째 우회 불가 게이트다.**
 
 **1-D. sheet-analyst (1-A와 병렬)** — **양식 지식은 커밋된 사양 파일에서 오고, 대상 시트에서는 변화만 확인한다.**
 
@@ -189,7 +223,7 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 | **A. 드리프트 검증** (기본) | `.claude/formats/`에 사양이 있음 | 사양 로드 + **대상 시트 헤더 1행 + 꼬리 20~50행** 실측 |
 | **B. 사양 갱신** | 사양이 없거나 `"양식 사양 갱신"` 요청 | 참고 시트 **전수 스캔** → 프로파일 갱신 |
 
-모드 A가 확인하는 것: 헤더 일치(불일치는 **Critical — 작성 중단 + 사용자 확인**) / 사양 외 enum(Major — 보고 후 확인) / **마지막 TC ID**(다음 시작 = 실측 + 1) / **기존 CH-ID 최대값**(1-B 배정의 근거) / 대상 탭이 비었거나 없으면 정상(Phase 3에서 사양의 헤더 원문으로 생성). 산출물은 두 모드 모두 `_workspace/02_sheet_format.md`이고 **최상단에 어느 모드였는지 명시**한다.
+모드 A가 확인하는 것: 헤더 일치(불일치는 **Critical — 작성 중단 + 사용자 확인**) / 사양 외 enum(Major — 보고 후 확인) / **마지막 TC ID**(다음 시작 = 실측 + 1) / **기존 CH-ID 최대값**(1-B 배정의 근거) / 대상 탭이 비었거나 없으면 정상(Phase 3에서 사양의 헤더 원문으로 생성). 산출물은 두 모드 모두 `testcase/02_sheet_format.md`이고 **최상단에 어느 모드였는지 명시**한다.
 
 - **프로파일 선택은 Phase 0에서 이미 확정됐다.** 여기서는 대상 시트에 데이터가 있으면 솔루션 컬럼 실측값과 **대조만** 하고 어긋나면 보고한다(`"제품 유형은 TROMBONE인데 시트 솔루션 컬럼은 VIOLA입니다"`). 시트가 판정 주체였던 옛 규칙은 폐기됐다.
 - enum은 **시트 전체에서 distinct로** 수집한다 (앞 50행만 보면 P4를 놓친다 — 실제 발생했던 누락).
@@ -283,14 +317,14 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/s
 
 ## 3. 데이터 전달 — 파일 기반 프로토콜
 
-에이전트끼리 결과를 대화로 넘기지 않는다. **모든 산출물은 `_workspace/` 아래 파일**이고, 다음 에이전트는 파일을 읽는다.
+에이전트끼리 결과를 대화로 넘기지 않는다. **모든 산출물은 작업 디렉터리 아래 파일**이고, 다음 에이전트는 파일을 읽는다. 아래 표에서 `shared/` 로 표시한 둘은 **기획서 분석 절차와 함께 쓰는 자리**이고 나머지는 `testcase/` 안이다.
 
 | 파일 | 생성자 | 소비자 |
 |------|--------|--------|
 | `00_screen_index.md` | 오케스트레이터 (1-B~1-C, 루프 중 상태 갱신) | prd-analyst · writer · reviewer, 사용자 확인 |
 | `00_cid_register.md` | 오케스트레이터 (1-B 선발급 / 루프 중 추가 발급) | prd-analyst (읽기·발급 요청), writer |
-| `00_image_quality.json` | 오케스트레이터 (1-A-2) | prd-analyst, writer, reviewer |
-| `red_regions/` · `strikethrough.json` | 오케스트레이터 (1-A-3, **전역 1회**) | prd-analyst (페이지 범위로 잘라 전달) |
+| `shared/00_image_quality.json` | 오케스트레이터 (1-A-2) | prd-analyst, writer, reviewer |
+| `shared/red_regions/` · `shared/strikethrough.json` | 오케스트레이터 (1-A-3, **전역 1회**) | prd-analyst (페이지 범위로 잘라 전달) |
 | `.claude/formats/common.md` + `profile-*.md` | 사람 (모드 B로 갱신) | sheet-analyst · writer · reviewer — **반드시 함께 읽는다** |
 | `01_prd_analysis_s{NN}.md` | prd-analyst | testcase-writer, testcase-reviewer |
 | `02_sheet_format.md` | sheet-analyst | writer·reviewer (**모든 화면이 공유**, 1회만 생성) |
@@ -489,6 +523,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 | `sheets_api.py` | **CLI는 `metadata` / `read` / `write` / `append` / `add_tab` 5개** (서비스 계정). `share`·`batch_update`·`create_spreadsheet`는 Python 전용 |
 | `verify_sheet_rows.py` | `--profile=` `--sheet=` `--tab=` `--rows=` `--tsv=` `--json=` `--selftest` `--diff` — **결정적 양식 점검 + 로컬↔시트 전 셀 대조**. 규칙은 사양에서 파싱(하드코딩 폴백 없음, 실패 시 exit 3) |
 | `read_tc_inventory.py` | `--source-sheet=` `--source-tab=`(복수) `--screen-id=`(복수·범위) `--target-sheet=` `--target-tab=` `--source-tsv=` `--out-dir=` `--selftest` — **추가 작업의 원본 TC 인벤토리**. 기능 단위·커버리지 맵·`솔루션` 실측 프로파일·TC ID 다음 번호(전 탭 최대값). 파생 태그 행은 원본에서 제외. 규칙은 사양에서 파싱(실패 시 exit 3), 헤더 불일치는 집계 없이 exit 2 |
+| `prd_cache.py` | `check` / `write` / `--pdf=` `--shared=` `--variant=name=,dir=,dpi=,tile=` `--page-count=` `--selftest` — **변환 이미지 재사용 판정**. 판정 근거는 경로가 아니라 **PDF 내용 해시**(`manifest.json` = 완료 마커). `CACHE_OK`(0) / `CACHE_MISMATCH`(2, **중단**) / `CACHE_NO_MANIFEST`(3) / `CACHE_PARTIAL`(4) |
 | `build_brief.py` | `--role=` `--profile=` `--doc-type=` `--index=` `--phase0=` `--has-change-exception` `--out=` `--coverage-check` — **역할별 브리핑(사양 절 원문 발췌)**. 미배정 절은 exit 3 |
 | `oauth_sheet.py` | `create` (OAuth2 시트 생성 + 공유) |
 | `pdf_to_images.py` | `--dpi=` `--crop-desc` `--output-dir=` `--pages=START-END` **`--tile=auto\|N` `--tile-overlap=`** |
@@ -511,7 +546,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 
 **필수 게이트 3곳** — 자동으로 넘어가지 않는다.
 
-1. **Phase 0 기본 정보 5개 확정** — 하나라도 미확정이면 진행하지 않는다(추정 금지)
+1. **Phase 0 기본 정보 7개 확정** — 필수 6개 중 하나라도 미확정이면 진행하지 않는다(추정 금지)
 2. **Phase 1-C 화면 인덱스 확정** — OK할 때까지 반복
 3. **Phase 3 첫 화면 TC 검토** — 첫 화면만, 이후 자동
 
@@ -564,7 +599,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 | Phase 0에서 제품 유형을 받으므로 행마다 판정이 중복 | **`관리대상` 컬럼 폐지 — 전 제품 23컬럼 통일** | 2026-09-02 |
 | 전면 박스 두 화면이 전체 케이스의 69% 차지 | **박스는 범위 후보일 뿐 확정력 없음** + `[변경 범위 불명]` | 2026-09-02 |
 | 삭제된 내용이 정상 동작 케이스로 작성됨 (의무만 있고 금지가 없었다) | **취소선 = 삭제 독립 정의 + 정상 케이스 금지**(Critical) | 2026-09-02 |
-| 요청에 적힌 것을 추측으로 메꿔 실행 도중에야 누락이 드러남 | **Phase 0 기본 정보 5개 게이트** | 2026-09-02 |
+| 요청에 적힌 것을 추측으로 메꿔 실행 도중에야 누락이 드러남 | **Phase 0 기본 정보 게이트**(2026-09-02 5개 → 2026-09-19 7개) | 2026-09-02 |
 | 챕터 단위가 시트의 식별 축(`화면 ID`)과 어긋남 + 정책 예외가 이미 화면 단위 | **화면 ID 단위 재편** (화면 하나를 시트 작성까지 완결) + 회귀 가드 스크립트 | 2026-09-02 |
 
 여기에 `.claude/memory/feedback_tc_completeness.md`가 별도로 축적돼 있다 — 팝업·모달·처리 결과·에러 화면 등 **보조 화면을 메인과 동등하게 다루고, 여러 케이스가 나올 항목을 1개로 요약하지 말 것**. 지적된 누락 1건은 대표 예시일 뿐이라는 전제로 항상 전수 분석한다.
@@ -582,8 +617,8 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 ## 9. 현재 상태
 
 - `.claude/formats/` — `common.md` + 프로파일 3종(`viola` / `trombone` / `bootfactory`). **`profile-bootfactory`는 팀 시트 실측이 없는 VIOLA 파생**이며, `솔루션` 고정값과 TC ID 코드는 실측 근거 0건의 제안값이다(파일 최상단에 명시). 팀 BF 원본 시트가 나오면 모드 B 전수 스캔으로 교체하는 것이 정공법.
-- `_workspace/` — 화면별 세트(`01`/`03`/`04` × s01~sNN) + 합본 3종 + `00_screen_index.md` + `00_cid_register.md` + `02_sheet_format.md`
-- 과거 실행본 디렉토리 보관 (`_workspace_prev*`, `_workspace_공통`, `_workspace_일반_v1` 등)
+- 작업 디렉터리 — `_workspace/{제품}_{제품버전}_{문서회차}/` 아래 `shared/`(이미지·검출 결과 + `manifest.json`) · `digest/`(기획서 분석) · `testcase/`(화면별 세트 `01`/`03`/`04` × s01~sNN + 합본 3종 + `00_screen_index.md` + `00_cid_register.md` + `02_sheet_format.md`). 추가 작업은 `_workspace/augment/`
+- 재실행 백업은 `testcase_prev_{설명}_{날짜}/` 로 **절차 디렉터리만** 옮긴다 — `shared/` 는 남아 이미지가 재사용된다
 - `scripts/verify_unit_migration.sh` — 처리 단위 재편 회귀 가드. **변경 이력 행(날짜 포함)은 과거 방식을 서술해야 하므로 검사에서 제외**된다. 이 문서 현행화 시점 실행 결과 `PASS`
 - 관련 문서 — 머리말의 문서 지도 참조. 요약 문서(`HARNESS_SUMMARY.md`)는 **2026-09-15에 폐지**됐고 그 역할은 `HARNESS_PIPELINE.md` 가 맡는다
 - 하네스 변경 시 `CLAUDE.md` 이력 테이블 갱신이 규칙이며, 하네스 자체 수정은 `harness` 메타 스킬(외부 플러그인)이 담당한다

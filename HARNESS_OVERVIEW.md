@@ -27,9 +27,10 @@
      │
      ▼
  ┌─────────────────────────────────────────────────────────────┐
- │ Phase 0 — 하네스가 먼저 5가지를 묻는다 (필수 게이트)          │
+ │ Phase 0 — 하네스가 먼저 7가지를 묻는다 (필수 게이트)          │
  │  ① 제품 유형  ② 기획서 유형(신규/변경) + 예외 항목            │
  │  ③ 기획서 경로  ④ 대상 시트 URL  ⑤ 탭(신규/기존)              │
+ │  ⑥ 작업 디렉터리명  ⑦ 이미 변환된 이미지 경로(선택)            │
  └─────────────────────────────────────────────────────────────┘
      │
      ▼
@@ -69,7 +70,7 @@
 
 | 사상 | 내용 |
 |------|------|
-| **기본 정보 선(先)수집** | 제품 유형·기획서 유형·예외 항목·기획서 경로·시트·탭 5가지를 **분석 착수 전에 확정**한다. 추정한 항목 하나가 전 행에 박히기 때문에, 답이 없으면 진행하지 않는다 (2026-09-02 신설) |
+| **기본 정보 선(先)수집** | 제품 유형·기획서 유형·예외 항목·기획서 경로·시트·탭·작업 디렉터리명 6가지(+ 선택 1)를 **분석 착수 전에 확정**한다. 추정한 항목 하나가 전 행에 박히기 때문에, 답이 없으면 진행하지 않는다 (2026-09-02 신설) |
 | 화면 ID 단위 순차 처리 | 전체 일괄 처리는 누락이 많았고(2026-06-11 챕터 순차로 전환), 챕터 단위는 시트의 식별 축(`화면 ID`)과 어긋났다. 2026-09-02에 화면 ID 1개 단위로 재편 — 화면 하나를 시트 작성까지 끝낸 뒤 다음으로 넘어간다 |
 | Description 최우선 | 기획서 우측 Description 패널이 1순위 소스, UI 화면은 보완용. Description 항목은 100% 케이스화 의무 |
 | atomic 단위 생성 | 팀이 정착시킨 양식이 atomic(단일 검증 1케이스)이므로 시나리오 묶음 금지 |
@@ -93,7 +94,7 @@ testcase-auto/
 │   │   └── testcase-reviewer.md
 │   ├── skills/                   # 스킬 5개(+외부 메타 스킬)
 │   │   ├── testcase-auto/        # 오케스트레이터 + scripts/build_brief.py
-│   │   ├── prd-analyzer/         # + references/{change-mode,figma,image-input}.md, scripts/figma_api.py, pdf_to_images.py, detect_red_regions.py, detect_strikethrough.py, check_image_quality.py
+│   │   ├── prd-analyzer/         # + references/{change-mode,figma,image-input}.md, scripts/figma_api.py, pdf_to_images.py, prd_cache.py, detect_red_regions.py, detect_strikethrough.py, check_image_quality.py
 │   │   ├── sheet-operator/       # + scripts/sheets_api.py, oauth_sheet.py
 │   │   ├── testcase-generator/   # + references/change-mode.md
 │   │   ├── testcase-reviewer/    # + references/change-mode.md, scripts/verify_sheet_rows.py
@@ -106,10 +107,14 @@ testcase-auto/
 │   └── memory/
 │       └── feedback_tc_completeness.md   # 누락·요약 금지 피드백
 ├── .credentials/                 # 서비스 계정 키, OAuth 토큰 (gitignore)
-├── scripts/                      # 루트 실행용 심볼릭 링크 7개 (원본은 각 스킬 하위)
+├── scripts/                      # 루트 실행용 심볼릭 링크 11개 + 회귀 가드 (원본은 각 스킬 하위)
 ├── PDF/                          # 입력 기획서 PDF
-├── _workspace/                   # 현재 실행 산출물 (gitignore)
-└── _workspace_*/                 # 과거 실행 보관 (prev, 공통, 일반_v1 등 — gitignore)
+└── _workspace/                   # 실행 산출물 (gitignore)
+    ├── VIOLA-K8s_4.0_v1/         #   {제품}_{제품버전}_{문서회차} — Phase 0에서 확정
+    │   ├── shared/               #     이미지·검출 결과 + manifest.json (절차끼리 공용)
+    │   ├── digest/               #     기획서 분석 (prd-digest)
+    │   └── testcase/             #     테스트 케이스 산출물
+    └── augment/                  #   추가 작업 (원천이 시트라 제품·버전 폴더 밖)
 ```
 
 ---
@@ -142,7 +147,7 @@ testcase-auto/
 
 | 스킬 | 유형 | 역할 | 번들 스크립트 |
 |------|------|------|--------------|
-| **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 5개 수집 게이트**, 화면 루프 제어, 사용자 게이트 관리 | — |
+| **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 7개 수집 게이트**, 화면 루프 제어, 사용자 게이트 관리 | — |
 | **testcase-augment** | 오케스트레이터 | **두 번째 절차 — 기존 테스트 케이스가 원천.** `예외 사항`·`권한` **중 하나**의 Phase 0~4 지휘, 게이트 3곳(권한 판독 / 규모 / 첫 배치), 배치 루프. 예외 모드는 **범위(`화면 ID` 목록)** 를 Phase 0 필수로 받는다. 기획서를 읽지 않고 제품 유형은 `솔루션` 실측으로 판정한다. 구글 시트 전용(엑셀 미지원) | `read_tc_inventory.py` |
 | **양식 사양** (`.claude/formats/`) | 데이터 | **공통 골격 1 + 제품 프로파일 3.** 컬럼 구조는 **전 제품 A~W 23컬럼 통일**. 케이스를 쓰려면 `common.md` **+ 해당 프로파일 두 개를 함께** 읽는다 | — |
 | **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차. **입력 유형·정책별 절은 `references/` 로 분리**(변경분 모드가 본문의 34%였다) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
@@ -173,7 +178,7 @@ testcase-auto/
 > **제안값**이다. 이 둘은 전 행에 박히는 상수라 나중에 바꾸려면 열 전체를 고쳐야 한다.
 > **팀 BF 원본 시트가 나오면 전수 스캔(모드 B)으로 교체하는 것이 정공법이다.**
 
-### 3-3. 스크립트 11개
+### 3-3. 스크립트 12개
 
 원본은 `.claude/skills/<스킬>/scripts/`에 있고, 프로젝트 루트 `scripts/`에 상대 심볼릭 링크가 걸려 있다. **모든 명령은 프로젝트 루트에서 `scripts/...` 경로로 실행한다.**
 
@@ -184,6 +189,7 @@ testcase-auto/
 | `detect_strikethrough.py` | **취소선 후보 검출 — 삭제 변경분 탐지.** 색 검출(`detect_red_regions.py`)로도 PDF 텍스트 레이어로도 잡히지 않는 표기를 기하학적으로 찾는다(두께 ≤ N px + **위·아래 양쪽에 글자 잉크** → 밑줄·구분선과 구별). `--color-only` 로 무채색 글자획·괘선 제거. 세로로 규칙적인 연속 런은 "하위 트리 전체 취소선"으로 묶어 보고. **`--min-len` 은 문서 글자 폭 실측값으로 정할 것**(한글 가로획이 짧은 수평선). **"0건"을 삭제 없음의 근거로 쓰려면 양성 대조 필수.** 오탐 포함 → 육안 확정 | `python detect_strikethrough.py <이미지\|디렉터리> [--color-only] [--min-len=70] [--max-thick=8] [--json]` |
 | `verify_sheet_rows.py` | **작성된 시트 행의 결정적(기계 판정) 양식 점검 + 로컬↔시트 전 셀 대조(`--diff`).** 헤더 원문·23컬럼·`피드백` 뒤 열 오염 · enum(우선순위·구분·`3 Depth`) · 구분×우선순위 결합 규칙 · `솔루션` 단일값 · `기능테스트 ID` 형식·중복 · `No` 연속성·중복 · Depth `-` vs 미사용 빈칸 · `비고`·`사전조건` 공란 · 절차 `N. ` 접두 · 예상 결과 명사형 · 본문 열 문체(백틱↔대괄호) · 셀 내 `\|`. **규칙은 `common.md` + 프로파일에서 파싱**하며 파싱 실패 시 하드코딩 폴백 없이 종료 코드 `3`. `--selftest` 로 검사기 자체 검증. 종료 코드 0/1/2/3 = 위반없음/Major이하/Critical/실행오류 | `python verify_sheet_rows.py --profile={viola\|trombone\|bootfactory} --sheet=<ID> --tab='<탭>' [--rows=2-56] [--tsv=f.tsv] [--json] [--selftest]` |
 | `read_tc_inventory.py` | **원본 테스트 케이스 인벤토리 — 추가 작업 Phase 1.** 원본 탭을 **스크립트가 읽어** 기능 단위(`화면 ID` + `2 Depth` + `3 Depth`) 목록·**기존 구분 커버리지 맵**·`솔루션` 실측 프로파일 판정·TC ID 접두별 다음 번호(관련 스프레드시트 **전 탭** 최대값)를 낸다. **파생 태그가 붙은 행은 원본에서 제외**(재실행 시 파생의 파생 방지)하되 커버리지에는 센다. **`--screen-id` 는 범위(Phase 0 입력)** — 그 화면의 행만 원천으로 쓰되 **범위 밖 행의 TC ID도 번호 실측에는 센다**(빼면 다음 번호가 이미 쓰인 값과 겹친다). 원본에 없는 화면 ID는 `SCOPE_NO_MATCH` Critical. 헤더 원문·파생 태그 접두·`솔루션` 고정값은 **사양에서 파싱**하며 실패 시 폴백 없이 종료 코드 `3`. 헤더 불일치는 집계하지 않고 Critical 보고만. 산출물 `10_tc_inventory.md` / `.json` | `python read_tc_inventory.py --source-sheet=<ID\|URL> --source-tab='<탭>' [--source-tab=…] [--screen-id='<화면 ID>'] [--target-sheet] [--target-tab] [--source-tsv=f.tsv] [--formats-dir] [--out-dir] [--selftest]` |
+| `prd_cache.py` | **변환된 이미지의 재사용 판정.** 판정 근거를 **경로가 아니라 PDF 내용 해시**로 두고 `shared/manifest.json`(= 완료 마커)과 대조한다 — 같은 PDF·같은 옵션이면 출력이 **SHA-256 까지 동일**하므로 재변환할 이유가 없고(181p 전체 약 10분), **다른 판본으로 만든 이미지를 쓰는 것**이 진짜 위험이라 불일치는 조용히 재변환하지 않고 **중단**한다. 종료 코드 0/2/3/4 = `CACHE_OK`/`CACHE_MISMATCH`/`CACHE_NO_MANIFEST`/`CACHE_PARTIAL`. `--selftest` 로 검사기 자체 검증 | `python prd_cache.py check --pdf=<pdf> --shared=<경로>` / `write --pdf= --shared= --variant=name=,dir=,dpi=,tile= --page-count=` |
 | `check_image_quality.py` | 이미지 판독 품질 진단 — 해상도(짧은 변)·선명도(라플라시안 분산)·대비·파일 훼손을 측정해 `OK`/`주의`/`불가` 판정. `불가`가 있으면 종료 코드 `2`(파이프라인 게이트). 지표보다 **실제 판독 결과가 우선** | `python check_image_quality.py <이미지\|디렉터리> [--json=<path>] [--min-short-side=1200] [--min-sharpness=60]` |
 | `figma_api.py` | Figma REST API 클라이언트. `get_file`(depth 지정), `get_file_nodes`, `get_images`, `get_comments`, URL→file key 추출 | `python figma_api.py file\|nodes\|images <url_or_key> ...` |
 | `sheets_api.py` | Sheets API v4 (서비스 계정). **CLI 하위 명령 5개** — `read`/`write`/`append`/`metadata`/`add_tab`. `get_metadata`·`share`·`batch_update`·`create_spreadsheet` 는 **Python 메서드 전용이며 CLI에 없다** (메타 조회의 CLI 이름은 `metadata`, Python 이름은 `get_metadata()`). HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |
@@ -204,7 +210,7 @@ testcase-auto/
 
 1. **환경변수 검증** — `FIGMA_ACCESS_TOKEN`(Figma 입력일 때만), `GOOGLE_APPLICATION_CREDENTIALS`. 누락 시 안내 후 중단
 
-2. **기본 정보 5개 수집 — 필수 게이트.** 분석에 착수하기 전에 하네스가 **먼저 물어본다.** 사용자가 첫 요청에 이미 적어 준 항목은 다시 묻지 않고 **확인만** 한다. **답이 없으면 진행하지 않는다** — 잘못 추정한 항목 하나가 전 행에 박힌다.
+2. **기본 정보 7개 수집((1)~(6) 필수, (7) 선택) — 필수 게이트.** 분석에 착수하기 전에 하네스가 **먼저 물어본다.** 사용자가 첫 요청에 이미 적어 준 항목은 다시 묻지 않고 **확인만** 한다. **답이 없으면 진행하지 않는다** — 잘못 추정한 항목 하나가 전 행에 박힌다.
 
    | # | 항목 | 값 |
    |---|------|-----|
@@ -214,6 +220,8 @@ testcase-auto/
    | **(3)** | **기획서 경로** | Figma URL / PDF 경로 / **이미지 파일·디렉터리 경로**. 이미지면 변환 없이 바로 분석 |
    | **(4)** | **테스트 케이스 경로** | 대상 구글 시트 URL |
    | **(5)** | **시트(탭)** | **`신규`**(생성할 탭명 → `add_tab` + 헤더 23컬럼) / **`기존`**(기존 탭명 → 헤더 대조 후 append) |
+   | **(6)** | **작업 디렉터리명** | `{제품}_{제품버전}_{문서회차}` (예 `VIOLA-K8s_4.0_v1`). **파일명에서 자동으로 만들지 않는다** — 제품 버전과 Document History 회차는 축이 다르다 |
+   | **(7)** | **이미 변환된 이미지 경로** (선택) | `shared` 디렉터리 경로. 값이 있으면 **1-A 변환을 건너뛴다**(검사는 반드시 한다) |
 
    - **`VIOLA K8s` 와 `VIOLA CI/CD` 는 같은 프로파일**을 쓴다. 둘의 차이는 시트 컬럼이 아니라 **분석 컨텍스트 + 탭 분리 + `1 Depth`(Breadcrumb 최상위 원문)** 로 표현된다
    - **예외 목록은 화면 ID 단위**다. 그 화면 하나가 통째로 반대 정책이 되고, 해당 케이스의 `피드백`에 `[정책 예외] 문서 기본={신규|변경} / 이 화면={변경|신규}` 를 남겨 역추적할 수 있게 한다
@@ -234,10 +242,10 @@ testcase-auto/
 
 5. **기존 산출물 확인 → 실행 모드 결정**
 
-| `_workspace/` 상태 | 사용자 요청 | 실행 모드 |
+| 작업 디렉터리의 `testcase/` 상태 | 사용자 요청 | 실행 모드 |
 |-------------------|-----------|----------|
 | 없음 | — | 초기 실행 (Phase 1부터 전체) |
-| 있음 | "다시"/"재실행" | 기존을 `_workspace_prev/`로 이동 후 새 실행 |
+| 있음 | "다시"/"재실행" | 기존을 `testcase_prev_{설명}_{날짜}/`로 이동 후 새 실행. **`shared/` 는 제자리에 남긴다** — 이미지는 판본이 같으면 같은 것이라 옮길 이유가 없다 |
 | 있음 | "특정 화면만 보완" | 부분 재실행 (인덱스에서 순번 특정, 해당 화면만, 나머지 재사용) |
 | 있음 | 변경 없음 | 이어 실행 (미완료 단계부터) |
 
@@ -296,8 +304,9 @@ testcase-auto/
 
 | 자료 | 위치 | 생성자 | 소비자 |
 |------|------|--------|--------|
-| 화면 인덱스 | `_workspace/00_screen_index.md` | 오케스트레이터 (1-B~1-C, 루프 중 상태 갱신) | prd-analyst, writer, reviewer, 사용자 확인 |
-| C-ID 레지스터 | `_workspace/00_cid_register.md` | 오케스트레이터 (선발급/추가 발급) | prd-analyst (읽기·요청), writer |
+| 화면 인덱스 | `testcase/00_screen_index.md` | 오케스트레이터 (1-B~1-C, 루프 중 상태 갱신) | prd-analyst, writer, reviewer, 사용자 확인 |
+| C-ID 레지스터 | `testcase/00_cid_register.md` | 오케스트레이터 (선발급/추가 발급) | prd-analyst (읽기·요청), writer |
+| 이미지·검출 결과 | `shared/images`·`images_desc`·`red_regions`·`strikethrough.json`·`00_image_quality.json` | 오케스트레이터 (1-A~1-A-3, **전역 1회**) | prd-analyst (페이지 범위로 잘라 전달) — **기획서 분석 절차와 공용** |
 | 화면 분석 | `01_prd_analysis_s{NN}.md` | prd-analyst | testcase-writer, testcase-reviewer |
 | **양식 사양 — 공통 골격** | `.claude/formats/common.md` | 사람 (모드 B로 갱신) | sheet-analyst, writer, reviewer |
 | **양식 사양 — 제품 프로파일** | `.claude/formats/profile-{viola\|trombone\|bootfactory}.md` | 사람 (모드 B로 갱신) | 동상 — **공통 골격과 반드시 함께 읽는다** |
@@ -478,7 +487,8 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 
 | 에러 | 대응 |
 |------|------|
-| **Phase 0 기본 정보 5개 중 하나라도 미확정** | **진행 중단** — 사용자에게 묻는다. 추정 금지 |
+| **Phase 0 기본 정보 필수 6개 중 하나라도 미확정** | **진행 중단** — 사용자에게 묻는다. 추정 금지 |
+| **캐시 이미지가 다른 판본의 것** (`CACHE_MISMATCH`) | **중단** — 조용히 재변환하지 않는다. 판본이 바뀐 사실이 사용자에게 도달해야 한다 |
 | **제품 유형에 해당하는 프로파일 파일이 없음** | 새 제품 가능성 → 참고 시트로 프로파일 신규 작성(모드 B) 제안 |
 | **제품 유형 ↔ 대상 시트 솔루션값 불일치** | 보고 후 확인 — 어느 쪽이 맞는지 사용자가 판단 |
 | **`기존` 탭 지정인데 그 탭이 없음** | 오타인지 신규인지 확인. **임의로 생성하지 않는다** |
@@ -505,7 +515,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 
 | 지점 | 시점 | 내용 | 필수 여부 |
 |------|------|------|----------|
-| **기본 정보 5개 수집** | Phase 0 | 제품 유형 / 기획서 유형 + 예외 항목 / 기획서 경로 / 대상 시트 / 탭 | **필수 게이트** (추정 금지 — 답이 없으면 진행하지 않는다) |
+| **기본 정보 7개 수집** | Phase 0 | 제품 유형 / 기획서 유형 + 예외 항목 / 기획서 경로 / 대상 시트 / 탭 / 작업 디렉터리명 / 이미 변환된 이미지 경로(선택) | **필수 게이트** (추정 금지 — 답이 없으면 진행하지 않는다) |
 | **수집 결과 요약 확인** | Phase 0-4 | 확정된 값을 표로 제시 — 오타·오해를 잡을 마지막 지점 | 필수 |
 | **화면 인덱스 확정** | Phase 1-C | 사전 스캔 결과 확인/수정 (OK까지 반복) | **필수 게이트** |
 | **첫 화면 TC 검토** | Phase 3 (s01) | `03_testcases_s01.md` 요약 확인 후 시트 작성 | **필수 게이트** (이후 화면은 자동) |
@@ -535,6 +545,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 | 2026-06-11 | `[공통 DESC]` 독립 TC 의무화 + `[UI↔DESC 불일치]` 태깅 | 공통 항목 생략 패턴, 소스 간 불일치 방치 방지 |
 | **2026-06-11** | **챕터(간지) 단위 순차 처리로 전면 전환** | 전체 일괄 처리의 누락 문제·처리 시간 과다. 병렬 청크 제거 → 단일 에이전트 순차 분석, 챕터별+합본 이중 저장 |
 | 2026-06-15 | figma → prd 명칭 통일 | 분석 대상이 Figma에 국한되지 않음 |
+| **2026-09-19** | **작업 디렉터리 재편 — 제품·버전 단위 + 절차별 분리 + 이미지 재사용** | 모든 절차가 한 디렉터리를 써서 제품·판본을 바꾸려면 통째로 옮기는 수밖에 없었고 **그 이동이 이미지를 함께 버렸다**(실측 495MB 중 이미지 484MB + 백업본 296MB = 같은 이미지 780MB). 변환에 캐시가 0건이라 매번 전량 재변환했다(181p 약 10분). 제품·버전 디렉터리 아래 `shared/`·`digest/`·`testcase/` 로 나누고 **재실행 백업에서 `shared/` 를 남긴다.** 재사용 판정은 경로가 아니라 **PDF 내용 해시**(`prd_cache.py`)이고 불일치는 **중단**한다 |
 
 **축적된 피드백 메모리** — `.claude/memory/feedback_tc_completeness.md`: 모든 화면·팝업·모달·처리 결과·에러 상태를 빠짐없이 TC화. 여러 케이스가 나올 항목을 1개로 요약 금지. (2026-06-14 실행에서 일괄등록 처리 결과 팝업 등 보조 화면 누락 다수 발견)
 
@@ -544,7 +555,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신(테스�
 
 ### 현재 산출물 상태
 
-`_workspace/`에 최근 실행 세트(분석·케이스·리뷰 + 합본 + `00_screen_index.md` + 이미지)가 있고, 과거 실행본은 `_workspace_prev*`, `_workspace_공통`, `_workspace_일반_v1`, `_workspace_policy` 등 20여 개 디렉토리로 보관돼 있다. 모두 gitignore 대상이므로 clone 직후에는 존재하지 않는다.
+`_workspace/` 아래에 **제품·제품버전·문서회차 단위 작업 디렉터리**가 서고(`VIOLA-K8s_4.0_v1/` 등), 그 안이 `shared/`(이미지·검출 결과 + `manifest.json`) · `digest/`(기획서 분석) · `testcase/`(케이스 산출물)로 갈린다. 추가 작업은 `_workspace/augment/`다. 재실행 백업은 `testcase_prev_{설명}_{날짜}/` 로 **절차 디렉터리만** 옮기므로 `shared/` 는 남아 이미지가 재사용된다. 모두 gitignore 대상이므로 clone 직후에는 존재하지 않는다.
 
 ### 정리된 불일치 2건 (2026-08-06 수정 완료)
 
