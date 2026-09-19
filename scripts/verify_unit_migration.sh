@@ -268,6 +268,14 @@ present "에이전트는 치환된 실제 경로를 받는다" '스스로 치환
         .claude/agents/testcase-reviewer.md .claude/agents/sheet-analyst.md \
         .claude/agents/tc-augmenter.md
 absent "에이전트·비오케스트레이터 문서의 _workspace 하드코딩" '_workspace' "${NOWS[@]}"
+# TODO(Task 6): testcase-augment 가 {WS} 표기로 바뀌면 "${ORCH[@]}" 로 넓힌다.
+present "작업 루트 변수 표기" '\{WS\}' .claude/skills/testcase-auto/SKILL.md
+absent "오케스트레이터의 산출물 경로 하드코딩" \
+       '_workspace/[0-9]|_workspace/pdf_images|_workspace/red_regions' "${ORCH[@]}"
+# 패턴에서 단독 '남긴다' 를 뺀 이유 — 바로 아래 해설 단락이 `shared/` 와 '남기는' 을 함께
+# 갖고 있어, 그 한 낱말만 '남긴다' 로 고쳐도 0-5 의 규칙 행이 사라진 채 통과한다.
+present "재실행 시 shared 보존" 'shared/.{0,12}(제자리|이동하지)' \
+        .claude/skills/testcase-auto/SKILL.md
 
 echo
 if [ "$fail" -eq 0 ]; then
