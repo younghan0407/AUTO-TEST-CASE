@@ -18,7 +18,9 @@ AGENTS=(.claude/agents/prd-analyst.md
         .claude/agents/testcase-reviewer.md
         .claude/agents/sheet-analyst.md)
 FORMATS=(.claude/formats/common.md)
-DOCS=(README.md HARNESS_OVERVIEW.md HARNESS_WORKFLOW.md docs/PROMPTS.md)
+DOCS=(README.md SETUP.md docs/AT_A_GLANCE.md docs/BASICS.md docs/PROMPTS.md docs/DESIGN_DECISIONS.md
+      HARNESS_PIPELINE.md HARNESS_WORKFLOW.md HARNESS_OVERVIEW.md
+      HARNESS_SETUP_PROMPT.md)
 AUGMENT=(.claude/skills/testcase-augment/SKILL.md
          .claude/agents/tc-augmenter.md
          .claude/skills/testcase-generator/references/exception-catalog.md
@@ -209,6 +211,33 @@ present "범위 오타는 Critical"           'SCOPE_NO_MATCH' \
                                                .claude/skills/testcase-augment/scripts/read_tc_inventory.py
 present "작업 유형은 한 실행에 하나"     '한 실행에 한 유형|하나만' \
                                                .claude/skills/testcase-augment/SKILL.md
+
+echo "── 문서 체계 가드 (2026-09-15) ────────────────────────────"
+# 문서가 낡은 채 방치된 원인은 가드의 검사 대상(DOCS)에서 빠져 있던 것이다.
+# 삭제·개명된 것을 가리키는 링크는 클론한 사람에게 404 가 된다.
+absent_h "삭제된 HARNESS_SUMMARY 참조" 'HARNESS_SUMMARY'   "${CORE[@]}" "${DOCS[@]}"
+absent   "제거된 루트 렌더 PDF 참조"   'HARNESS_[A-Z_]+\.pdf' "${DOCS[@]}"
+absent   "폐지된 사양 파일 경로"       'formats/team-'      "${CORE[@]}" "${DOCS[@]}"
+present  "원리 문서 3종의 문서 지도"   '이 문서가 답하는 질문' HARNESS_PIPELINE.md \
+                                               HARNESS_WORKFLOW.md \
+                                               HARNESS_OVERVIEW.md
+present  "세팅 문서의 게이트 3곳"      '멈추는 곳 3군데|게이트.{0,3}3곳' SETUP.md
+present  "이식 문서는 .claude 단일출처" '단일 출처' HARNESS_SETUP_PROMPT.md
+present  "설계 백서의 권위 선언"       '권위는 .CLAUDE.md. 변경 이력 표' docs/DESIGN_DECISIONS.md
+present  "설계 백서가 문서 지도에 있음" 'DESIGN_DECISIONS' README.md
+present  "기초 문서가 문서 지도에 있음"   'BASICS' README.md SETUP.md \
+                                               HARNESS_PIPELINE.md \
+                                               HARNESS_WORKFLOW.md \
+                                               HARNESS_OVERVIEW.md
+present  "기초 문서는 흐름을 복제하지 않음" '흐름을 설명하지 않는다' docs/BASICS.md
+present  "기초 문서는 규칙의 권위가 아님"   '그쪽이 맞다' docs/BASICS.md
+present  "한 장 요약이 문서 지도에 있음"   'AT_A_GLANCE' README.md \
+                                               HARNESS_PIPELINE.md \
+                                               HARNESS_WORKFLOW.md \
+                                               HARNESS_OVERVIEW.md \
+                                               docs/BASICS.md
+present  "한 장 요약에 구조적 공백 절"   '구조적 공백' docs/AT_A_GLANCE.md
+present  "한 장 요약에 커버리지 분모 명시" '분모는 제품이 아니라 기획서' docs/AT_A_GLANCE.md
 
 echo "── CLI 명령 오표기 가드 ───────────────────────────────────"
 absent "get_metadata 셸 명령 표기" 'sheets_api\.py get_metadata' "${CORE[@]}" "${DOCS[@]}"

@@ -5,6 +5,20 @@
 
 기획서(PDF / Figma / 이미지) 한 건을 넣으면 → 커밋된 팀 양식 사양을 로드해 대상 시트와 대조하고 → **화면 ID 단위로 잘라** → 테스트 케이스를 만들어 구글 시트에 쓰고 → 스스로 QA 리뷰까지 하는 파이프라인이다.
 
+
+> **이 문서가 답하는 질문:** 각 단계가 **무엇을 입력받아 무엇을 내놓는지**, 케이스를 **어떤 규칙으로 뽑고 판정하는지**의 상세.
+>
+> | 궁금한 것 | 볼 문서 |
+> |------------|---------|
+> | **한 장 요약** — 범위와 한계 | [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) |
+> | **기초** — 용어, 결과물, 내가 할 일, 판단 기준을 쉬운 말로 | [docs/BASICS.md](docs/BASICS.md) |
+> | **흐름** — 기획서 한 건이 어떤 순서로 시트 행이 되는가 | [HARNESS_PIPELINE.md](HARNESS_PIPELINE.md) |
+> | **절차** — 각 단계가 무엇을 입력받아 무엇을 내놓는가, 어떤 규칙으로 판정하는가 | [HARNESS_WORKFLOW.md](HARNESS_WORKFLOW.md)  ← **이 문서** |
+> | **구성** — 어떤 파일·에이전트·스크립트가 무엇을 담당하는가 | [HARNESS_OVERVIEW.md](HARNESS_OVERVIEW.md) |
+> | **사유** — 그 규칙이 왜 그렇게 정해졌는가 (날짜별 단일 출처) | [CLAUDE.md](CLAUDE.md) 변경 이력 |
+> | **세팅** — 클론해서 처음 돌리기까지 | [SETUP.md](SETUP.md) |
+> | **요청** — 무엇을 어떻게 요청하면 품질이 올라가는가 | [docs/PROMPTS.md](docs/PROMPTS.md) |
+
 ---
 
 ## 1. 실행 계층 — 무엇이 무엇을 부르는가
@@ -571,5 +585,5 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 - `_workspace/` — 화면별 세트(`01`/`03`/`04` × s01~sNN) + 합본 3종 + `00_screen_index.md` + `00_cid_register.md` + `02_sheet_format.md`
 - 과거 실행본 디렉토리 보관 (`_workspace_prev*`, `_workspace_공통`, `_workspace_일반_v1` 등)
 - `scripts/verify_unit_migration.sh` — 처리 단위 재편 회귀 가드. **변경 이력 행(날짜 포함)은 과거 방식을 서술해야 하므로 검사에서 제외**된다. 이 문서 현행화 시점 실행 결과 `PASS`
-- 관련 문서 — `HARNESS_OVERVIEW.md`(상세 구성), `HARNESS_SUMMARY.md`(1페이지 요약), `HARNESS_SETUP_PROMPT.md`(구축 프롬프트), `docs/PROMPTS.md`(요청 프롬프트 예시), 본 문서(동작 방식)
+- 관련 문서 — 머리말의 문서 지도 참조. 요약 문서(`HARNESS_SUMMARY.md`)는 **2026-09-15에 폐지**됐고 그 역할은 `HARNESS_PIPELINE.md` 가 맡는다
 - 하네스 변경 시 `CLAUDE.md` 이력 테이블 갱신이 규칙이며, 하네스 자체 수정은 `harness` 메타 스킬(외부 플러그인)이 담당한다

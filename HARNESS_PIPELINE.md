@@ -1,14 +1,27 @@
 # testcase-auto 파이프라인
 
 > 작성일: 2026-09-09 · 기준: `.claude/skills/testcase-auto/SKILL.md` · `HARNESS_WORKFLOW.md` · `.claude/formats/` · `scripts/`
-> 다이어그램 포함 웹 버전: <https://claude.ai/code/artifact/ebc965ba-1b5d-4783-983a-b5f4a752d511>
-> 같은 내용의 PDF: `HARNESS_PIPELINE.pdf`
+> 다이어그램 포함 웹 버전: <https://claude.ai/code/artifact/ebc965ba-1b5d-4783-983a-b5f4a752d511> (기본 비공개 — 열람 권한이 없으면 이 문서가 원본이다)
 
 기획서(PDF · Figma · 이미지) 한 건이 **화면 ID 단위**로 잘려 팀 양식의 테스트 케이스가 되고, 구글 시트에 쓰이고, 스스로 QA 리뷰까지 받는 7단계. 사람이 반드시 끼어드는 지점은 세 곳이다.
 
 | 처리 단위 | 사용자 게이트 | 에이전트 사이클 | 시트 컬럼 | 전달 방식 |
 |-----------|--------------|----------------|-----------|-----------|
 | 화면 ID 1개 | 3곳 (우회 불가) | `3M + 1` | 23컬럼 A~W | `_workspace/` 파일 |
+
+
+> **이 문서가 답하는 질문:** 기획서 한 건이 **화면 ID 단위로 잘려 시트 행이 되기까지의 흐름**과, 사람이 반드시 끼어드는 지점.
+>
+> | 궁금한 것 | 볼 문서 |
+> |------------|---------|
+> | **한 장 요약** — 범위와 한계 | [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) |
+> | **기초** — 용어, 결과물, 내가 할 일, 판단 기준을 쉬운 말로 | [docs/BASICS.md](docs/BASICS.md) |
+> | **흐름** — 기획서 한 건이 어떤 순서로 시트 행이 되는가 | [HARNESS_PIPELINE.md](HARNESS_PIPELINE.md)  ← **이 문서** |
+> | **절차** — 각 단계가 무엇을 입력받아 무엇을 내놓는가, 어떤 규칙으로 판정하는가 | [HARNESS_WORKFLOW.md](HARNESS_WORKFLOW.md) |
+> | **구성** — 어떤 파일·에이전트·스크립트가 무엇을 담당하는가 | [HARNESS_OVERVIEW.md](HARNESS_OVERVIEW.md) |
+> | **사유** — 그 규칙이 왜 그렇게 정해졌는가 (날짜별 단일 출처) | [CLAUDE.md](CLAUDE.md) 변경 이력 |
+> | **세팅** — 클론해서 처음 돌리기까지 | [SETUP.md](SETUP.md) |
+> | **요청** — 무엇을 어떻게 요청하면 품질이 올라가는가 | [docs/PROMPTS.md](docs/PROMPTS.md) |
 
 ---
 

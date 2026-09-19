@@ -21,7 +21,7 @@
 그래서 실행할 때 참고 시트 URL이 필요하지 않고, 대상 시트에서는 **헤더와 마지막 TC ID만** 확인합니다.
 프로파일은 ① 제품 유형으로 정해지고, 시트에 데이터가 있으면 솔루션 컬럼과 대조합니다.
 
-에이전트 4명이 협업합니다.
+기획서 기반 생성(`testcase-auto`)은 에이전트 4명이 협업합니다.
 
 | 에이전트 | 역할 |
 |---------|------|
@@ -90,27 +90,43 @@ python3 verify_setup.py
 
 ## 문서
 
-| 문서 | 용도 |
-|------|------|
-| [SETUP.md](SETUP.md) | **팀원 세팅 가이드 + 검증 절차** — 여기서 시작 |
-| [docs/PROMPTS.md](docs/PROMPTS.md) | **프롬프트 가이드** — 무엇을 어떻게 요청하면 품질이 올라가는지 |
-| [docs/baselines/](docs/baselines/) | **준수도 기준선** — 하네스 출력을 팀 양식 사양으로 채점한 결과 (회귀 판단 기준) |
-| [.claude/formats/common.md](.claude/formats/common.md) | **양식 공통 골격** — 컬럼 구조(A~W 23) · 태그 체계 · C-ID/CH-ID · 변경분 모드 · 권위 규칙 |
-| [.claude/formats/profile-viola.md](.claude/formats/profile-viola.md) | **VIOLA 프로파일** (`K8s`·`CI/CD` 공용) — 2탭 331행 전수 실측 |
-| [.claude/formats/profile-trombone.md](.claude/formats/profile-trombone.md) | **TROMBONE 프로파일** — 8탭 3,953행 전수 실측 |
-| [.claude/formats/profile-bootfactory.md](.claude/formats/profile-bootfactory.md) | **BootFactory 프로파일** — VIOLA 파생, **실측 근거 없음** |
-| [CLAUDE.md](CLAUDE.md) | 하네스 트리거 규칙 + **변경 이력** (규칙을 왜 그렇게 정했는지) |
-| [HARNESS_OVERVIEW.md](HARNESS_OVERVIEW.md) | 전체 구성도 — 어떤 파일이 무엇을 담당하는지 |
-| [HARNESS_WORKFLOW.md](HARNESS_WORKFLOW.md) | 실행 흐름 상세 |
-| [HARNESS_SUMMARY.md](HARNESS_SUMMARY.md) | 한 장 요약 |
+**처음이면 위에서부터.** 아래 여섯이 사용자 문서이고, 그 아래는 하네스 내부를 볼 때 봅니다.
+
+| 문서 | 답하는 질문 |
+|------|------------|
+| [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) | **한 장 요약** — 어디까지 자동이고 어디서 사람이 필요한가. 남에게 설명할 때 |
+| [docs/BASICS.md](docs/BASICS.md) | **기초** — 이게 무엇을 해주는 물건이고 나는 무엇을 하면 되는가. 처음이면 여기부터 |
+| [SETUP.md](SETUP.md) | **세팅** — 클론해서 처음 돌리기까지 (약 15분, 검증 포함) |
+| [docs/PROMPTS.md](docs/PROMPTS.md) | **요청** — 무엇을 어떻게 요청하면 품질이 올라가는가 |
+| [HARNESS_PIPELINE.md](HARNESS_PIPELINE.md) | **흐름** — 기획서 한 건이 어떤 순서로 시트 행이 되는가 |
+| [HARNESS_SETUP_PROMPT.md](HARNESS_SETUP_PROMPT.md) | **이식** — 이 하네스를 다른 프로젝트에서 다시 쓰려면 |
+
+| 내부 문서 | 답하는 질문 |
+|-----------|------------|
+| [HARNESS_WORKFLOW.md](HARNESS_WORKFLOW.md) | **절차** — 각 단계가 무엇을 입력받아 무엇을 내놓는가, 어떤 규칙으로 판정하는가 |
+| [HARNESS_OVERVIEW.md](HARNESS_OVERVIEW.md) | **구성** — 어떤 파일·에이전트·스크립트가 무엇을 담당하는가 |
+| [CLAUDE.md](CLAUDE.md) | **사유** — 그 규칙이 왜 그렇게 정해졌는가. 변경 이력이 **날짜별 단일 출처**이며, 다른 문서와 어긋나면 이 표가 맞다 |
+| [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md) | **사유(주제별)** — 위 이력을 주제 7개로 재구성. 규칙 하나하나가 어떤 실패에서 역산됐는지 |
+| [docs/baselines/](docs/baselines/) | **기준선** — 하네스 출력을 팀 양식 사양으로 채점한 결과 (회귀 판단 기준) |
+
+| 양식 사양 | 내용 |
+|-----------|------|
+| [.claude/formats/common.md](.claude/formats/common.md) | **공통 골격** — 컬럼 구조(A~W 23) · 태그 체계 · C-ID/CH-ID · 변경분 모드 · 권위 규칙 |
+| [.claude/formats/profile-viola.md](.claude/formats/profile-viola.md) | **VIOLA** (`K8s`·`CI/CD` 공용) — 2탭 331행 전수 실측 |
+| [.claude/formats/profile-trombone.md](.claude/formats/profile-trombone.md) | **TROMBONE** — 8탭 3,953행 전수 실측 |
+| [.claude/formats/profile-bootfactory.md](.claude/formats/profile-bootfactory.md) | **BootFactory** — VIOLA 파생, **실측 근거 없음** |
+
+**양식은 공통 골격 + 해당 프로파일 두 개를 함께 읽어야 성립합니다.** 한쪽만 읽으면 규칙의 절반이 없습니다.
 
 ## 구성
 
 ```
 .claude/
-  skills/          testcase-auto(오케스트레이터) / prd-analyzer / sheet-operator
-                   testcase-generator / testcase-reviewer
+  skills/          testcase-auto      기획서 → 케이스 (오케스트레이터)
+                   testcase-augment   기존 케이스 → 예외 사항·권한 파생 (오케스트레이터)
+                   prd-analyzer / sheet-operator / testcase-generator / testcase-reviewer
   agents/          prd-analyst / sheet-analyst / testcase-writer / testcase-reviewer
+                   tc-augmenter (추가 작업 전용)
   formats/         common.md(공통 골격) + profile-viola / profile-trombone / profile-bootfactory
                    — 참고 시트 대신 기준. 공통 골격 + 프로파일을 함께 읽는다
 scripts/           스킬 하위 원본에 대한 심볼릭 링크 (루트에서 실행하기 위한 것)
@@ -118,14 +134,20 @@ scripts/           스킬 하위 원본에 대한 심볼릭 링크 (루트에서
   pdf_to_images.py         PDF → 페이지별 PNG 변환 (--tile=auto 로 판독용 세로 분할)
   detect_red_regions.py    변경 표시 색 영역 검출 — PDF·이미지 모두 지원 (--color=red|blue|both)
   detect_strikethrough.py  취소선 후보 검출 — 삭제 변경분 탐지 (색·텍스트 검출로 안 잡히는 표기)
-  verify_sheet_rows.py     작성된 시트 행의 결정적 양식 점검 + 로컬↔시트 전 셀 대조 (--diff)
-  build_brief.py           역할별 브리핑 생성 — 사양 절 원문 발췌 (--coverage-check 로 배정 누락 검사)
   check_image_quality.py   이미지 판독 품질 진단 (해상도·선명도·훼손)
+  build_brief.py           역할별 브리핑 생성 — 사양 절 원문 발췌 (--coverage-check 로 배정 누락 검사)
+  read_tc_inventory.py     원본 테스트 케이스 인벤토리 집계 (추가 작업의 원천 읽기)
+  verify_sheet_rows.py     작성된 시트 행의 결정적 양식 점검 + 로컬↔시트 전 셀 대조 (--diff)
   sheets_api.py            Google Sheets 읽기·쓰기 (서비스 계정)
   oauth_sheet.py           새 스프레드시트 생성 (OAuth2)
+  verify_unit_migration.sh 회귀 가드 — 폐기된 처리 단위 잔존 + 품질 장치 누락 검사
 verify_setup.py    세팅 점검 스모크 테스트
 _workspace/        실행 산출물 (커밋 제외)
 ```
+
+**두 오케스트레이터는 원천이 다릅니다** — `testcase-auto` 는 기획서를 읽고, `testcase-augment` 는
+읽지 않습니다(이미 작성된 케이스가 원천). 한쪽에 모드를 얹지 않고 나눈 이유는 Phase 0 질문부터
+품질 규칙까지 공유하는 것이 거의 없어, 합치면 두 경로가 함께 무거워지기 때문입니다.
 
 ## 주의
 

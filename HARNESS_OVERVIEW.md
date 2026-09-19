@@ -4,6 +4,20 @@
 > 대상: 프로젝트 루트 (이 저장소를 clone 한 디렉터리)
 > 목적: 기획서(PRD) → 팀 양식 테스트 케이스 자동 생성 → 구글 시트 작성·리뷰
 
+
+> **이 문서가 답하는 질문:** **어떤 파일이 무엇을 담당하는지** — 스킬·에이전트·스크립트·양식 사양의 구성도와 디렉터리 구조.
+>
+> | 궁금한 것 | 볼 문서 |
+> |------------|---------|
+> | **한 장 요약** — 범위와 한계 | [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) |
+> | **기초** — 용어, 결과물, 내가 할 일, 판단 기준을 쉬운 말로 | [docs/BASICS.md](docs/BASICS.md) |
+> | **흐름** — 기획서 한 건이 어떤 순서로 시트 행이 되는가 | [HARNESS_PIPELINE.md](HARNESS_PIPELINE.md) |
+> | **절차** — 각 단계가 무엇을 입력받아 무엇을 내놓는가, 어떤 규칙으로 판정하는가 | [HARNESS_WORKFLOW.md](HARNESS_WORKFLOW.md) |
+> | **구성** — 어떤 파일·에이전트·스크립트가 무엇을 담당하는가 | [HARNESS_OVERVIEW.md](HARNESS_OVERVIEW.md)  ← **이 문서** |
+> | **사유** — 그 규칙이 왜 그렇게 정해졌는가 (날짜별 단일 출처) | [CLAUDE.md](CLAUDE.md) 변경 이력 |
+> | **세팅** — 클론해서 처음 돌리기까지 | [SETUP.md](SETUP.md) |
+> | **요청** — 무엇을 어떻게 요청하면 품질이 올라가는가 | [docs/PROMPTS.md](docs/PROMPTS.md) |
+
 ---
 
 ## 1. 한눈에 보기
