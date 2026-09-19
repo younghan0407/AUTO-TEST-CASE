@@ -132,7 +132,7 @@ python scripts/detect_red_regions.py <입력> --color=both --no-crops
 
 ```bash
 # 취소선 후보 검출 — 글자를 가로지르는 얇은 수평선을 기하학적으로 찾는다
-python scripts/detect_strikethrough.py <이미지|디렉터리> --color-only
+python scripts/detect_strikethrough.py <이미지|디렉터리> --color-only --json={SHARED}/strikethrough.json
 
 # 변경 표기를 반드시 색으로 하는 기획서면 --color-only 로 무채색 글자획·괘선을 걸러낸다
 ```

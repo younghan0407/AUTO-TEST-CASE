@@ -19,8 +19,14 @@
       --variant=name=full,dir=images,dpi=150,tile=none \\
       --variant=name=desc,dir=images_desc,dpi=200,tile=auto \\
       [--page-count=181]
-  python prd_cache.py check --pdf=<PDF> --shared=<디렉터리>
+  python prd_cache.py check --pdf=<PDF> --shared=<디렉터리> [--require=full,desc]
   python prd_cache.py --selftest
+
+`--require=` 는 **있어야 하는 variant 이름 목록**이다. 매니페스트가 그중 하나라도
+기록하고 있지 않으면 `CACHE_PARTIAL` 이다. 이 인자가 없으면 `check` 는 *이미 아는
+variant* 만 검사하므로, `full` 만 등록된 트리가 `desc` 없이도 `CACHE_OK` 를 받는다 —
+그러면 분석 담당이 DESC 조각을 못 받고 150 DPI 전체 페이지만 읽는다(한글 1자 9.9px).
+오류는 나지 않고 **판독 품질만 조용히 떨어진다.**
 """
 from __future__ import annotations
 
@@ -57,6 +63,13 @@ def count_images(directory: str) -> int:
 
 def write_manifest(pdf, shared, variants, page_count=None):
     """전량 성공한 뒤에만 manifest 를 쓴다 — 이 파일이 완료 마커다."""
+    # variant 가 하나도 없으면 쓰지 않는다. 아래 루프의 무결성 검사는 목록이 비면
+    # 한 번도 돌지 않으므로, 빈 목록을 그대로 통과시키면 **이미지가 0장인 디렉터리가
+    # 영구히 유효한 캐시**가 된다 — 완료 마커라는 이 파일의 존재 이유가 무너진다.
+    if not variants:
+        return "WRITE_INCOMPLETE", {"reason": "variant 가 하나도 없다",
+                                    "hint": "--variant=name=…,dir=… 를 최소 하나 주라"}
+
     pdf_hash = sha256_file(pdf)
     mp = os.path.join(shared, MANIFEST)
 
@@ -96,8 +109,14 @@ def write_manifest(pdf, shared, variants, page_count=None):
     return "WRITE_OK", {"variants": sorted(recorded), "sha256": data["sha256"][:16]}
 
 
-def check_manifest(pdf, shared):
-    """재사용해도 되는지 판정한다. 근거는 경로가 아니라 PDF 내용 해시다."""
+def check_manifest(pdf, shared, require=None):
+    """재사용해도 되는지 판정한다. 근거는 경로가 아니라 PDF 내용 해시다.
+
+    `require` 는 **있어야 하는 variant 이름 목록**이다. 주지 않으면 매니페스트에
+    기록된 variant 만 검사하므로, 밖에서 만들어져 일부만 채워진 트리가 `CACHE_OK`
+    를 받는다. 그 경우 오류 없이 **판독 품질만 떨어지므로** 호출부가 필요한 이름을
+    넘겨야 한다.
+    """
     mp = os.path.join(shared, MANIFEST)
     if not os.path.isfile(mp):
         return "CACHE_NO_MANIFEST", {"path": mp}
@@ -115,13 +134,28 @@ def check_manifest(pdf, shared):
             "actual_sha256": actual[:16],
         }
 
-    for name, v in (m.get("variants") or {}).items():
+    recorded = m.get("variants") or {}
+
+    # 빈 매니페스트는 완료 마커가 아니다 — 아무것도 기록하지 않은 파일이 캐시 판정을
+    # 통과하면 이미지 0장인 디렉터리가 유효한 캐시가 된다.
+    if not recorded:
+        return "CACHE_NO_MANIFEST", {"path": mp, "reason": "variants 가 비어 있다"}
+
+    if require:
+        missing = [r for r in require if r not in recorded]
+        if missing:
+            return "CACHE_PARTIAL", {
+                "missing": missing, "required": list(require),
+                "recorded": sorted(recorded),
+            }
+
+    for name, v in recorded.items():
         n = count_images(os.path.join(shared, v.get("dir", "")))
         if n != v.get("files"):
             return "CACHE_PARTIAL", {
                 "variant": name, "expected": v.get("files"), "actual": n,
             }
-    return "CACHE_OK", {"variants": sorted((m.get("variants") or {}))}
+    return "CACHE_OK", {"variants": sorted(recorded)}
 
 
 def _selftest() -> int:
@@ -129,8 +163,10 @@ def _selftest() -> int:
     import tempfile
 
     fails = []
+    total = [0]
 
     def chk(name, cond, detail=""):
+        total[0] += 1
         if cond:
             print("  ok    %s" % name)
         else:
@@ -265,11 +301,56 @@ def _selftest() -> int:
         rc = main(["check", "--pdf=%s" % pdf3, "--shared=%s" % shared4])
         chk("S15 check 명령: 파일 손실하면 exit code 4", rc == 4)
 
+        # S16: variant 를 하나도 주지 않은 write 는 거부한다.
+        # 빈 매니페스트를 쓰면 이미지 0장인 디렉터리가 영구 유효 캐시가 된다.
+        shared5 = os.path.join(t, "shared5")
+        os.makedirs(shared5)
+        st, d = write_manifest(pdf, shared5, [])
+        chk("S16 variant 없는 write 는 WRITE_INCOMPLETE", st == "WRITE_INCOMPLETE", st)
+        chk("S16 거부 시 manifest 미생성",
+            not os.path.exists(os.path.join(shared5, MANIFEST)))
+        rc = main(["write", "--pdf=%s" % pdf, "--shared=%s" % shared5])
+        chk("S16 write 명령: variant 없으면 exit code 4", rc == 4)
+
+        # S17~S18: `full` 만 등록된 트리 — --require 유무로 판정이 갈린다.
+        shared6 = os.path.join(t, "shared6")
+        img6 = os.path.join(shared6, "images")
+        os.makedirs(img6)
+        for i in (1, 2):
+            with open(os.path.join(img6, "page_%03d.png" % i), "wb") as f:
+                f.write(b"x")
+        st, d = write_manifest(
+            pdf, shared6, [{"name": "full", "dir": "images", "dpi": 150, "tile": None}])
+        chk("S17 full 만 등록한 write", st == "WRITE_OK", st)
+
+        st, d = check_manifest(pdf, shared6, require=["full", "desc"])
+        chk("S17 --require 로 누락 variant 를 잡는다", st == "CACHE_PARTIAL", st)
+        chk("S17 누락 목록이 desc 를 지목", d.get("missing") == ["desc"], d)
+        rc = main(["check", "--pdf=%s" % pdf, "--shared=%s" % shared6,
+                   "--require=full,desc"])
+        chk("S17 check --require 명령: exit code 4", rc == 4)
+
+        st, d = check_manifest(pdf, shared6)
+        chk("S18 --require 없으면 아는 variant 만 검사해 CACHE_OK",
+            st == "CACHE_OK", st)
+
+        # S19: variants 가 빈 매니페스트는 완료 마커가 아니다.
+        shared7 = os.path.join(t, "shared7")
+        os.makedirs(shared7)
+        with open(os.path.join(shared7, MANIFEST), "w", encoding="utf-8") as f:
+            json.dump({"source_pdf": pdf, "sha256": sha256_file(pdf),
+                       "page_count": 2, "variants": {}}, f)
+        st, d = check_manifest(pdf, shared7)
+        chk("S19 빈 variants 는 CACHE_NO_MANIFEST", st == "CACHE_NO_MANIFEST", st)
+        rc = main(["check", "--pdf=%s" % pdf, "--shared=%s" % shared7])
+        chk("S19 check 명령: 빈 variants 면 exit code 3", rc == 3)
+
     print()
     if fails:
         print("selftest FAIL — %d건: %s" % (len(fails), ", ".join(fails)))
         return 1
-    print("selftest PASS — 21건 통과")
+    # 건수는 실행 중에 센다 — 하드코딩하면 케이스가 사라져도 같은 수가 찍힌다.
+    print("selftest PASS — %d건 통과" % total[0])
     return 0
 
 
@@ -313,7 +394,8 @@ def main(argv: list[str]) -> int:
         pc = int(opt["page-count"]) if opt.get("page-count") else None
         st, d = write_manifest(pdf, shared, variants, page_count=pc)
     elif cmd == "check":
-        st, d = check_manifest(pdf, shared)
+        req = [s.strip() for s in (opt.get("require") or "").split(",") if s.strip()]
+        st, d = check_manifest(pdf, shared, require=req or None)
     else:
         print("알 수 없는 명령: %s" % cmd)
         return 1
