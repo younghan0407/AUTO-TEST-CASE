@@ -69,10 +69,11 @@ def read_index_titles(ws: str) -> dict:
     if not os.path.isfile(p):
         return out
     lines = open(p, encoding="utf-8").readlines()
-    # 헤더 행 찾기
+    # 헤더 행 찾기 (파일 끝까지 스캔)
     title_col = None
     id_col = None
-    for hdr_line in lines[:3]:
+    header_idx = None
+    for i, hdr_line in enumerate(lines):
         if not hdr_line.startswith("|"):
             continue
         cells = [c.strip() for c in hdr_line.split("|")[1:-1]]
@@ -81,15 +82,20 @@ def read_index_titles(ws: str) -> dict:
         # Page Title 열 찾기
         if "Page Title" in cells:
             title_col = cells.index("Page Title")
-        # 화면 ID 열 찾기 (원문이나 기본 이름)
-        for i, cell in enumerate(cells):
-            if "화면 ID" in cell:
-                id_col = i
-                break
-    if title_col is None or id_col is None:
+            # 화면 ID 열 찾기 (원문이나 기본 이름)
+            for j, cell in enumerate(cells):
+                if "화면 ID" in cell:
+                    id_col = j
+                    break
+            if title_col is not None and id_col is not None:
+                header_idx = i
+                break  # 헤더 찾았음
+    if title_col is None or id_col is None or header_idx is None:
         return out  # 필수 헤더 없음 — 폴백
-    # 데이터 행 읽기
-    for line in lines:
+    # 데이터 행 읽기 (헤더와 구분선 건너뛰기)
+    for i, line in enumerate(lines):
+        if i <= header_idx + 1:  # 헤더와 구분선 건너뛰기
+            continue
         if not line.startswith("|") or re.match(r"\|\s*-", line):
             continue
         cells = [c.strip() for c in line.split("|")[1:-1]]
@@ -164,7 +170,7 @@ def render_features_md(rows, tree, titles, header: dict) -> str:
             out.append("| 기능 | 설명 | 분류 |")
             out.append("|------|------|------|")
             for r in rs:
-                out.append("| %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), r["cls"]))
+                out.append("| %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), _escape_cell(r["cls"])))
             out.append("")
 
     if "" in groups:
@@ -198,7 +204,7 @@ def render_changes_md(rows, tree, titles, header: dict) -> str:
     if glob_rows:
         out += ["| 기능 | 설명 | 분류 | 근거 |", "|------|------|------|------|"]
         for r in glob_rows:
-            out.append("| %s | %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), r["cls"], _escape_cell(r["evidence"])))
+            out.append("| %s | %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), _escape_cell(r["cls"]), _escape_cell(r["evidence"])))
     else:
         out.append("해당 없음.")
     out.append("")
@@ -307,9 +313,9 @@ def _selftest() -> int:
             re.search(r"\| 신규 \| 2 \|", c_md) is not None)
         chk("S9 IA 대조에 기획서 단독 화면이 나온다",
             "VIOE-99_99_99" in c_md.split("## IA ↔ 기획서 대조")[1])
-        # S10 — 두 MD 의 화면 집합이 같은지 확인 (양쪽 문서 모두)
-        f_screens = set(re.findall(r"VIOE-\d\d_\d\d_\d\d", f_md))
-        c_screens = set(re.findall(r"VIOE-\d\d_\d\d_\d\d", c_md))
+        # S10 — 두 MD 의 화면 집합이 같은지 확인 (### 헤딩만 비교)
+        f_screens = set(re.findall(r"^### (VIOE-\d\d_\d\d_\d\d)", f_md, re.MULTILINE))
+        c_screens = set(re.findall(r"^### (VIOE-\d\d_\d\d_\d\d)", c_md, re.MULTILINE))
         chk("S10 두 MD 의 화면 집합이 같다", f_screens == c_screens == {"VIOE-04_06_01", "VIOE-99_99_99", "VIOE-00_00_00"})
 
         # S11 — 열 수가 틀리면 즉시 실패
@@ -376,6 +382,44 @@ def _selftest() -> int:
         finally:
             import shutil
             shutil.rmtree(ws4)
+
+        # S15 — 분류(cls) 에 파이프가 있어도 표 셀이 유지된다 (2-A)
+        ws5 = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(ws5, "02_features_s01.tsv"), "w", encoding="utf-8") as f:
+                f.write("VIOE-DD_DD_DD\t기능명\t설명 | 파이프포함\t신규\t근거|메모\tp001\t\n")
+            tree5 = {"source": "IA.xlsx", "sheet": "메뉴", "level_count": 1, "screens": [
+                {"screen_id": "VIOE-DD_DD_DD", "name": "테스트", "path": ["경로"]},
+            ]}
+            with open(os.path.join(ws5, "00_menu_tree.json"), "w", encoding="utf-8") as f:
+                json.dump(tree5, f, ensure_ascii=False)
+            rs5 = read_features(ws5)
+            c_md5 = render_changes_md(rs5, tree5, {}, {"product": "TEST", "doc": "test"})
+            # 표 행에서 여러 필드의 파이프가 escape 되었음을 확인
+            has_escaped_desc = r"설명 \| 파이프포함" in c_md5
+            has_escaped_evidence = r"근거\|메모" in c_md5
+            chk("S15 분류/설명/근거 escape — 표 셀 구조 유지", has_escaped_desc and has_escaped_evidence)
+        finally:
+            import shutil
+            shutil.rmtree(ws5)
+
+        # S16 — 헤더가 21줄째에 있어도 올바르게 읽는다 (2-B)
+        ws6 = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(ws6, "00_screen_index.md"), "w", encoding="utf-8") as f:
+                # 20줄의 preamble 다음에 헤더와 데이터
+                for i in range(20):
+                    f.write("# 머리말 %d\n" % (i+1))
+                f.write("| 순번 | 화면 ID(원문) | Page Title |\n|---|---|---|\n")
+                f.write("| 01 | VIOE-EE_EE_EE | 화면_롱_이름 |\n")
+                f.write("| 02 | VIOE-FF_FF_FF | 다른_화면 |\n")
+            titles6 = read_index_titles(ws6)
+            chk("S16 preamble 후 헤더 — 데이터 읽음",
+                len(titles6) == 2 and titles6.get("VIOE-EE_EE_EE") == "화면_롱_이름",
+                "count=%d" % len(titles6))
+        finally:
+            import shutil
+            shutil.rmtree(ws6)
 
     print()
     if fails:
