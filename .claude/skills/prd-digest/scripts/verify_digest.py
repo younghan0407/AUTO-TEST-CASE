@@ -30,6 +30,11 @@ CLASSES = ("신규", "변경", "삭제", "확인 필요", "미변경")
 GLOBAL_ID = "문서 전역"
 COLS = 7
 EVIDENCE_REQUIRED = ("신규", "변경", "삭제")
+# `04_신규변경.md` 에 절을 얻지 못하는 분류 — `render_digest.py` 의 같은 이름 상수와 맞춘다.
+# 두 스크립트가 갈리면 렌더가 쓰지 않은 화면을 점검이 요구하게 된다(Fix A 의 원인).
+# 집합 연산인 이유도 그쪽과 같다 — 분류가 늘면 **기본값이 "절을 준다"** 여야 새 분류가 조용히 빠지지 않는다.
+NO_SECTION = ("미변경",)
+SECTION_CLASSES = tuple(c for c in CLASSES if c not in NO_SECTION)
 
 
 def _read_tsv(ws: str) -> list:
@@ -130,12 +135,15 @@ def check(ws: str, total_pages=None) -> list:
 
     seen_pages = set()
     tsv_ids = set()
+    section_ids = set()  # `04` 에 절을 얻는 분류를 한 행이라도 가진 화면
     for fn, ln, cells in rows:
         if len(cells) != COLS:
             v.append(("Critical", "TSV_COLS", "%s:%d 열 %d개 (7개여야 한다)" % (fn, ln, len(cells))))
             continue
         sid, feature, _desc, cls, evidence, page, _fb = [c.strip() for c in cells]
         tsv_ids.add(sid)
+        if cls not in NO_SECTION:
+            section_ids.add(sid)
         if cls not in CLASSES:
             v.append(("Critical", "CLASS_ENUM",
                       "%s:%d 분류 %r — 허용: %s" % (fn, ln, cls, "·".join(CLASSES))))
@@ -156,10 +164,20 @@ def check(ws: str, total_pages=None) -> list:
     if all(os.path.isfile(p) for p in (md_f, md_c)):
         in_f = _md_screens(open(md_f, encoding="utf-8").read(), tsv_ids)
         in_c = _md_screens(open(md_c, encoding="utf-8").read(), tsv_ids)
+        # `03` 은 **모든 화면**을 싣는다(기획서에 실린 전체 기능 목록이다).
+        # `04` 는 **절을 얻는 분류를 가진 화면만** 싣는다.
+        #
+        # ⚠️ 양쪽을 똑같이 요구하면 **규칙대로 작성한 실행이 통과할 수 없다.** 변경 표기가
+        #    하나도 없는 화면은 전 행이 `미변경` 인데, `미변경` 은 `04` 에 절을 얻지 못하므로
+        #    렌더러가 그 화면을 `04` 에 쓰지 않는다. 그런데 에이전트는 그 화면을 버릴 수도
+        #    (`03` 이 전체 목록이 아니게 된다) `확인 필요` 로 옮길 수도(변경 문서가 미변경으로
+        #    뒤덮인다) 없다 — **빠져나갈 길이 없는 Critical** 이 된다.
+        #    실측 규모(화면 127개 · 변경 항목 165건)에서는 정상 실행이 Critical 수십 건과
+        #    종료 코드 `2` 로 끝나고, **아무도 해소할 수 없는 위반은 검사 전체를 무력화한다.**
         for sid in sorted(tsv_ids - {GLOBAL_ID}):
             if sid not in in_f:
                 v.append(("Critical", "MD_MISSING", "`%s` 가 03_기능_전체.md 에 없다" % sid))
-            if sid not in in_c:
+            if sid in section_ids and sid not in in_c:
                 v.append(("Critical", "MD_MISSING", "`%s` 가 04_신규변경.md 에 없다" % sid))
 
     # 화면 커버리지는 렌더 여부와 무관하다 — MD 가 없어도 본다.
@@ -207,14 +225,21 @@ def _selftest() -> int:
         got = codes(ws, pages)
         chk(name, code in got, got)
 
-    def build(ws, tsv_rows, md_ids=None, index_ids=None):
+    def build(ws, tsv_rows, md_ids=None, index_ids=None, c_ids=None):
+        """`c_ids` 는 `04` 에만 쓸 화면 목록 — 두 MD 의 내용이 갈리는 경우를 만든다.
+
+        ⚠️ 이 인자가 없으면 **렌더러의 실제 동작을 재현할 수 없다.** 렌더러는 `미변경`
+           전용 화면을 `03` 에만 싣고 `04` 에는 싣지 않으므로, 두 MD 에 늘 같은 목록을
+           쓰는 헬퍼로는 그 상황이 자기검증에 영영 나타나지 않는다.
+        """
         with open(os.path.join(ws, "02_features_s01.tsv"), "w", encoding="utf-8") as f:
             for r in tsv_rows:
                 f.write("\t".join(r) + "\n")
         ids = md_ids if md_ids is not None else [r[0] for r in tsv_rows if r[0] != GLOBAL_ID]
-        for nm in ("03_기능_전체.md", "04_신규변경.md"):
+        for nm, which in (("03_기능_전체.md", ids),
+                          ("04_신규변경.md", ids if c_ids is None else c_ids)):
             with open(os.path.join(ws, nm), "w", encoding="utf-8") as f:
-                f.write("\n".join("### %s" % s for s in ids) + "\n")
+                f.write("\n".join("### %s" % s for s in which) + "\n")
         with open(os.path.join(ws, "00_screen_index.md"), "w", encoding="utf-8") as f:
             f.write("| 순번 | 화면 ID(원문) | Page Title |\n|---|---|---|\n")
             for s in (index_ids if index_ids is not None else ids):
@@ -347,6 +372,39 @@ def _selftest() -> int:
         c = codes(ws)
         chk("S26 미변경은 분류 enum 안이다", "CLASS_ENUM" not in c, c)
         chk("S27 미변경 행은 근거가 없어도 통과", c == set(), c)
+
+    # Fix A — `미변경` 전용 화면은 `04` 에 절을 얻지 못한다. 양쪽을 똑같이 요구하면
+    # **규칙대로 작성한 실행이 통과할 수 없다**(에이전트는 그 화면을 버릴 수도 다른 분류로
+    # 옮길 수도 없다). 두 방향을 함께 본다 — 면제가 너무 넓으면 진짜 누락을 놓친다.
+    unchanged_row = ["VIOE-90", "그대로기능", "설명", "미변경", "", "p001", ""]
+    changed_row = ["VIOE-91", "바뀐기능", "설명", "변경", "[스티커 p002]", "p002", ""]
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [unchanged_row], c_ids=[])
+        c = codes(ws)
+        chk("S28 전 행이 미변경인 화면이 04 에 없어도 MD_MISSING 아니다",
+            c == set(), c)
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [unchanged_row, changed_row], c_ids=["VIOE-91"])
+        c = codes(ws)
+        chk("S29 미변경 화면만 04 에서 빠진 것은 정상 — 변경 화면은 실려 있다",
+            c == set(), c)
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [unchanged_row, changed_row], c_ids=[])
+        chk_hit("S30 변경 행을 가진 화면이 04 에 없으면 여전히 MD_MISSING", ws, "MD_MISSING")
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [unchanged_row], md_ids=[])
+        chk_hit("S31 미변경 화면도 03 에는 반드시 있어야 한다", ws, "MD_MISSING")
+
+    # 한 화면이 미변경 행과 변경 행을 **함께** 가지면 그 화면은 `04` 에 실려야 한다.
+    # 화면 단위로 판정하지 않고 행 단위로 면제하면 이 화면이 통째로 빠져도 통과한다.
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [["VIOE-92", "그대로", "설명", "미변경", "", "p001", ""],
+                   ["VIOE-92", "바뀜", "설명", "변경", "[스티커 p001]", "p001", ""]],
+              c_ids=[])
+        chk_hit("S32 미변경·변경을 함께 가진 화면이 04 에 없으면 MD_MISSING", ws, "MD_MISSING")
 
     print()
     print("  심어 둔 위반 %d종: %s" % (len(injected), ", ".join(sorted(injected))))

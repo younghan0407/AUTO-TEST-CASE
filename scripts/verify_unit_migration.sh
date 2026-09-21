@@ -290,7 +290,18 @@ present "재실행 시 shared 보존" 'shared/.{0,12}(제자리|이동하지)' \
         .claude/skills/testcase-auto/SKILL.md
 
 echo "── 기획서 분석 절차 (2026-09-21) ──────────────────────────"
+# 라벨은 `분류 5종` 을 말하는데 패턴은 `확인 필요` 한 낱말만 봤다 — **`미변경` 을 두 파일에서
+# 전부 지워도 `ok` 가 찍히고 검사 전체가 통과한다**(실측 확인). 이 저장소가 2026-09-15 에
+# 「권위 선언」·「분모」 가드에서 겪은 것과 같은 형태다: 라벨이 주장하는 범위보다 패턴이 좁으면
+# 규칙의 절반이 사라져도 초록으로 보인다.
+# 한 패턴에 합치지 않고 두 줄로 나눈 이유 — `present` 의 ERE 는 파일 단위 `grep -qE` 라
+# `확인 필요|미변경` 은 **OR** 가 되어 오히려 더 약해지고(한쪽만 남아도 통과), 두 낱말은
+# 분류 표의 **서로 다른 행**에 있어 한 줄 패턴(`작업 루트 변수 정의 행` 방식)으로 묶을 수도 없다.
+# 나눠 두면 어느 분류가 사라졌는지가 FAIL 메시지에 그대로 나온다.
 present "분류 5종에 확인 필요 포함" '확인 필요' \
+        .claude/skills/prd-analyzer/references/digest-mode.md \
+        .claude/agents/prd-digester.md
+present "분류 5종에 미변경 포함" '미변경' \
         .claude/skills/prd-analyzer/references/digest-mode.md \
         .claude/agents/prd-digester.md
 present "리뷰 역방향 오판 금지" '역방향 오판|오판 금지' \
