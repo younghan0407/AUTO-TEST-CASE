@@ -10,10 +10,12 @@ cd "$(dirname "$0")/.." || exit 1
 
 SKILLS=(.claude/skills/testcase-auto/SKILL.md
         .claude/skills/prd-analyzer/SKILL.md
+        .claude/skills/prd-digest/SKILL.md
         .claude/skills/testcase-generator/SKILL.md
         .claude/skills/testcase-reviewer/SKILL.md
         .claude/skills/sheet-operator/SKILL.md)
 AGENTS=(.claude/agents/prd-analyst.md
+        .claude/agents/prd-digester.md
         .claude/agents/testcase-writer.md
         .claude/agents/testcase-reviewer.md
         .claude/agents/sheet-analyst.md)
@@ -351,6 +353,33 @@ present "두 MD 는 한 TSV 에서 렌더" '한 벌의 TSV|같은 TSV 에서' \
 # 적중이고, 그 줄을 지우면 나머지 두 줄이 남아 있어도 FAIL 한다.
 present "TROMBONE 미지원"          'TROMBONE.{0,3}을 고르면 진행하지 않' \
         .claude/skills/prd-digest/SKILL.md
+
+# 트리거 문구 독점 가드 — **스킬 선택은 `CLAUDE.md` 분기 표가 아니라 스킬 `description`
+# 매칭으로 일어난다.** 분기 표는 모델이 이미 이 저장소의 규칙을 읽고 있을 때만 이기고,
+# `description` 은 그보다 먼저 읽힌다. 두 스킬이 같은 문구를 명령형으로 주장하면
+# `기획서 분석해줘` 가 도구 스킬(`prd-analyzer`)로 갈 수 있는데, 그 경로에는 Phase 0 도
+# 작업 디렉터리도 메뉴 IA 단계도 없어 **산출물 2개가 아예 만들어지지 않는다.**
+# `기획서 분석 결과` 는 입력 산출물을 가리키는 명사구이지 사용자가 타이핑하는 트리거가
+# 아니므로(`testcase-generator`) 지우고 나서 센다 — 안 그러면 이 가드가 영구 FAIL 이거나,
+# 그걸 피하려다 패턴이 느슨해져 진짜 중복을 놓친다.
+trigger_owner() {
+  local f n=0 hits=""
+  for f in .claude/skills/*/SKILL.md; do
+    [ -e "$f" ] || continue
+    if sed -n 's/^description: *//p' "$f" | sed 's/기획서 분석 결과//g' | grep -q '기획서 분석'; then
+      n=$((n + 1)); hits="$hits $f"
+    fi
+  done
+  if [ "$n" -eq 1 ]; then
+    printf 'ok    기획서 분석 트리거 문구 독점 (스킬 1개)
+'
+  else
+    printf 'FAIL  기획서 분석 트리거 문구를 주장하는 스킬이 %d개 — 정확히 1개여야 한다:%s
+' "$n" "$hits"
+    fail=1
+  fi
+}
+trigger_owner
 
 # 트리거 충돌 가드 — `CLAUDE.md` 의 트리거 절이 `기획서 분석` 을 `testcase-auto` 로 보내고
 # 있었다(2026-09-21 이전). 그 상태에서는 이 절차가 **문서에만 있고 아무도 부르지 않는다.**
