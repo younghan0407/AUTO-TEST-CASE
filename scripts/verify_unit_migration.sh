@@ -322,7 +322,12 @@ present "IA 는 권위가 아니다"     'IA (부재|에 없다).*(신호|근거
         .claude/skills/prd-digest/SKILL.md
 present "두 MD 는 한 TSV 에서 렌더" '한 벌의 TSV|같은 TSV 에서' \
         .claude/skills/prd-digest/SKILL.md
-present "TROMBONE 미지원"          'TROMBONE.*(중단|미지원|추후)' \
+# 패턴을 `TROMBONE.*(중단|미지원|추후)` 에서 **선언 문장 자체**로 좁혔다 — 그 형태는 0-2 의
+# enum 셀(`… / \`TROMBONE\`(중단)`)과 에러 표 행까지 셋이 만족해, **규칙을 서술한 두 줄을
+# 지우고 enum 셀만 남겨도 `ok` 가 찍힌다**(음성 대조로 재현). 이 저장소가 2026-09-15 에
+# 「권위 선언」·「분모」 가드에서 겪은 것과 같은 형태다. 이제 선언 한 줄이 이 패턴의 유일한
+# 적중이고, 그 줄을 지우면 나머지 두 줄이 남아 있어도 FAIL 한다.
+present "TROMBONE 미지원"          'TROMBONE.{0,3}을 고르면 진행하지 않' \
         .claude/skills/prd-digest/SKILL.md
 
 echo
