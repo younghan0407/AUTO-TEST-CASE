@@ -27,6 +27,11 @@ GLOBAL_ID = "문서 전역"
 COLS = 7
 
 
+def _escape_cell(text: str) -> str:
+    """마크다운 표 셀 내 파이프 문자를 escape 한다. 개행과 탭은 공백으로 바꾼다."""
+    return text.replace("|", r"\|").replace("\n", " ").replace("\t", " ")
+
+
 def read_features(ws: str) -> list:
     """`02_features_s*.tsv` 를 전부 읽어 행 목록으로 돌려준다."""
     rows = []
@@ -58,15 +63,41 @@ def read_menu_tree(ws: str):
 
 
 def read_index_titles(ws: str) -> dict:
-    """`00_screen_index.md` 의 화면 ID → Page Title. 표의 2·3열을 읽는다."""
+    """`00_screen_index.md` 의 화면 ID → Page Title. 헤더에서 열을 찾는다."""
     p = os.path.join(ws, "00_screen_index.md")
     out = {}
     if not os.path.isfile(p):
         return out
-    for line in open(p, encoding="utf-8"):
-        m = re.match(r"\|\s*\d+\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|", line)
-        if m:
-            out[m.group(1).strip()] = m.group(2).strip()
+    lines = open(p, encoding="utf-8").readlines()
+    # 헤더 행 찾기
+    title_col = None
+    id_col = None
+    for hdr_line in lines[:3]:
+        if not hdr_line.startswith("|"):
+            continue
+        cells = [c.strip() for c in hdr_line.split("|")[1:-1]]
+        if cells and cells[0].startswith("-"):  # 구분선 건너뛰기
+            continue
+        # Page Title 열 찾기
+        if "Page Title" in cells:
+            title_col = cells.index("Page Title")
+        # 화면 ID 열 찾기 (원문이나 기본 이름)
+        for i, cell in enumerate(cells):
+            if "화면 ID" in cell:
+                id_col = i
+                break
+    if title_col is None or id_col is None:
+        return out  # 필수 헤더 없음 — 폴백
+    # 데이터 행 읽기
+    for line in lines:
+        if not line.startswith("|") or re.match(r"\|\s*-", line):
+            continue
+        cells = [c.strip() for c in line.split("|")[1:-1]]
+        if len(cells) > max(id_col, title_col):
+            sid = cells[id_col]
+            title = cells[title_col]
+            if sid and title:
+                out[sid] = title
     return out
 
 
@@ -100,10 +131,18 @@ def render_features_md(rows, tree, titles, header: dict) -> str:
     path_of, name_of = build_lookup(tree, titles)
     scr = [r for r in rows if r["screen_id"] != GLOBAL_ID]
 
+    # 화면당 폴백 경로 해석 1회 (첫 비어있지 않은 값)
+    screen_fallbacks = {}
+    for r in scr:
+        sid = r["screen_id"]
+        if sid not in screen_fallbacks and r["path_fallback"]:
+            screen_fallbacks[sid] = r["path_fallback"]
+
     groups = {}
     for r in scr:
-        groups.setdefault(path_of(r["screen_id"], r["path_fallback"]), {}) \
-              .setdefault(r["screen_id"], []).append(r)
+        sid = r["screen_id"]
+        path = path_of(sid, screen_fallbacks.get(sid, ""))
+        groups.setdefault(path, {}).setdefault(sid, []).append(r)
 
     out = ["# %s 기능 정리 — 메뉴 구조 기준" % header.get("product", ""), ""]
     out.append("- 기획서: %s" % header.get("doc", "(미지정)"))
@@ -125,7 +164,7 @@ def render_features_md(rows, tree, titles, header: dict) -> str:
             out.append("| 기능 | 설명 | 분류 |")
             out.append("|------|------|------|")
             for r in rs:
-                out.append("| %s | %s | %s |" % (r["feature"], r["desc"], r["cls"]))
+                out.append("| %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), r["cls"]))
             out.append("")
 
     if "" in groups:
@@ -141,6 +180,13 @@ def render_changes_md(rows, tree, titles, header: dict) -> str:
     scr = [r for r in rows if r["screen_id"] != GLOBAL_ID]
     glob_rows = [r for r in rows if r["screen_id"] == GLOBAL_ID]
 
+    # 화면당 폴백 경로 해석 1회 (첫 비어있지 않은 값)
+    screen_fallbacks = {}
+    for r in scr:
+        sid = r["screen_id"]
+        if sid not in screen_fallbacks and r["path_fallback"]:
+            screen_fallbacks[sid] = r["path_fallback"]
+
     out = ["# %s 신규·변경·삭제 기능" % header.get("product", ""), "", "## 요약", "",
            "| 분류 | 기능 수 | 화면 수 |", "|------|--------|--------|"]
     for c in CLASSES:
@@ -152,7 +198,7 @@ def render_changes_md(rows, tree, titles, header: dict) -> str:
     if glob_rows:
         out += ["| 기능 | 설명 | 분류 | 근거 |", "|------|------|------|------|"]
         for r in glob_rows:
-            out.append("| %s | %s | %s | %s |" % (r["feature"], r["desc"], r["cls"], r["evidence"]))
+            out.append("| %s | %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), r["cls"], _escape_cell(r["evidence"])))
     else:
         out.append("해당 없음.")
     out.append("")
@@ -166,13 +212,13 @@ def render_changes_md(rows, tree, titles, header: dict) -> str:
             continue
         for sid in sorted({r["screen_id"] for r in sel}):
             rs = [r for r in sel if r["screen_id"] == sid]
-            pl = path_of(sid, rs[0]["path_fallback"]) or "경로 없음"
+            pl = path_of(sid, screen_fallbacks.get(sid, "")) or "경로 없음"
             pages = sorted({r["page"] for r in rs if r["page"]})
             out.append("### %s %s 〈%s〉 %s" % (sid, name_of(sid), pl, ", ".join(pages)))
             out.append("")
             out += ["| 기능 | 설명 | 근거 |", "|------|------|------|"]
             for r in rs:
-                out.append("| %s | %s | %s |" % (r["feature"], r["desc"], r["evidence"]))
+                out.append("| %s | %s | %s |" % (_escape_cell(r["feature"]), _escape_cell(r["desc"]), _escape_cell(r["evidence"])))
             out.append("")
 
     out += ["## IA ↔ 기획서 대조", ""]
@@ -261,9 +307,10 @@ def _selftest() -> int:
             re.search(r"\| 신규 \| 2 \|", c_md) is not None)
         chk("S9 IA 대조에 기획서 단독 화면이 나온다",
             "VIOE-99_99_99" in c_md.split("## IA ↔ 기획서 대조")[1])
-        chk("S10 두 MD 의 화면 집합이 같다",
-            {"VIOE-04_06_01", "VIOE-99_99_99", "VIOE-00_00_00"} ==
-            set(re.findall(r"VIOE-\d\d_\d\d_\d\d", f_md)))
+        # S10 — 두 MD 의 화면 집합이 같은지 확인 (양쪽 문서 모두)
+        f_screens = set(re.findall(r"VIOE-\d\d_\d\d_\d\d", f_md))
+        c_screens = set(re.findall(r"VIOE-\d\d_\d\d_\d\d", c_md))
+        chk("S10 두 MD 의 화면 집합이 같다", f_screens == c_screens == {"VIOE-04_06_01", "VIOE-99_99_99", "VIOE-00_00_00"})
 
         # S11 — 열 수가 틀리면 즉시 실패
         with open(os.path.join(ws, "02_features_s02.tsv"), "w", encoding="utf-8") as f:
@@ -273,6 +320,62 @@ def _selftest() -> int:
             chk("S11 열 수가 틀리면 예외", False, "예외 없음")
         except ValueError as e:
             chk("S11 열 수가 틀리면 예외", "TSV_COLS" in str(e), str(e))
+
+        # S12 — 파이프 문자가 있는 기능명도 표가 정상 렌더된다
+        ws2 = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(ws2, "02_features_s01.tsv"), "w", encoding="utf-8") as f:
+                f.write("VIOE-AA_AA_AA\t파이프 |기능\t설명\t신규\t근거\tp001\t\n")
+            tree2 = {"source": "IA.xlsx", "sheet": "메뉴", "level_count": 1, "screens": [
+                {"screen_id": "VIOE-AA_AA_AA", "name": "테스트", "path": ["경로"]},
+            ]}
+            with open(os.path.join(ws2, "00_menu_tree.json"), "w", encoding="utf-8") as f:
+                json.dump(tree2, f, ensure_ascii=False)
+            rs2 = read_features(ws2)
+            c_md2 = render_changes_md(rs2, tree2, {}, {"product": "TEST", "doc": "test"})
+            # escape 된 파이프가 있고, 셀 구조가 유지됨 (개행/탭도 공백으로 바뀐다는 의미)
+            has_escaped = r"\|" in c_md2
+            has_feature_word = "파이프" in c_md2 and "기능" in c_md2
+            chk("S12 파이프 escape — 표 셀 구조 유지", has_escaped and has_feature_word)
+        finally:
+            import shutil
+            shutil.rmtree(ws2)
+
+        # S13 — 한 화면이 여러 행에서 다른 폴백값을 가져도 한 섹션에만 나타난다
+        ws3 = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(ws3, "02_features_s01.tsv"), "w", encoding="utf-8") as f:
+                f.write("VIOE-BB_BB_BB\t기능1\t설명1\t신규\t근거1\tp001\t경로1\n")
+                f.write("VIOE-BB_BB_BB\t기능2\t설명2\t신규\t근거2\tp002\t경로2\n")
+            tree3 = {"source": "IA.xlsx", "sheet": "메뉴", "level_count": 1, "screens": []}
+            with open(os.path.join(ws3, "00_menu_tree.json"), "w", encoding="utf-8") as f:
+                json.dump(tree3, f, ensure_ascii=False)
+            rs3 = read_features(ws3)
+            f_md3 = render_features_md(rs3, tree3, {}, {"product": "TEST", "doc": "test"})
+            c_md3 = render_changes_md(rs3, tree3, {}, {"product": "TEST", "doc": "test"})
+            # 03 에서 VIOE-BB_BB_BB 는 한 번만 나타나야 함
+            count_in_03 = f_md3.count("### VIOE-BB_BB_BB")
+            # 04 에서도 한 경로에만 나타나야 함
+            c_sections = c_md3.split("###")
+            bb_sections = [s for s in c_sections if "VIOE-BB_BB_BB" in s]
+            chk("S13 화면당 폴백 1회 해석 — 03 단일 섹션", count_in_03 == 1, count_in_03)
+            chk("S13 화면당 폴백 1회 해석 — 04 단일 섹션", len(bb_sections) == 1, len(bb_sections))
+        finally:
+            import shutil
+            shutil.rmtree(ws3)
+
+        # S14 — Page Title 헤더가 다른 위치에 있어도 찾아낸다
+        ws4 = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(ws4, "00_screen_index.md"), "w", encoding="utf-8") as f:
+                # Page Title 이 3번째가 아닌 다른 위치
+                f.write("| 순번 | Page Title | 화면 ID(원문) |\n|---|---|---|\n")
+                f.write("| 01 | 화면명 레이블 | VIOE-CC_CC_CC |\n")
+            titles4 = read_index_titles(ws4)
+            chk("S14 Page Title 헤더 찾기", titles4.get("VIOE-CC_CC_CC") == "화면명 레이블", titles4)
+        finally:
+            import shutil
+            shutil.rmtree(ws4)
 
     print()
     if fails:
