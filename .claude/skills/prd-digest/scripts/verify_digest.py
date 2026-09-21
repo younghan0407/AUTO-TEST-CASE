@@ -11,7 +11,10 @@
   python verify_digest.py --ws=<디렉터리> [--pages=<총 페이지 수>]
   python verify_digest.py --selftest
 
-종료 코드: 0 위반 없음 / 2 Critical 있음 / 1 Major 만 있음
+종료 코드: 0 위반 없음 / 2 Critical 있음 / 1 Major 만 있음 / 3 실행 오류
+
+⚠️ `3` 을 따로 둔 이유 — 인자가 잘못돼 터지면 파이썬이 `1` 로 나가는데, 이 CLI 에서 `1` 은
+   **Major 만 있음**이다. 호출자가 *점검은 돌았고 Critical 은 없었다* 로 읽는다.
 """
 from __future__ import annotations
 
@@ -45,13 +48,17 @@ def _index_screens(ws: str) -> set:
        그 값은 `SCREEN_MISSING` Critical 로 올라가 *있지도 않은 화면이 누락됐다* 고
        보고하게 되고, **오탐을 내는 검사기는 무시당해 검사 자체가 무력해진다.**
        `render_digest.py` 의 `read_index_titles` 와 같은 방식으로 읽는다.
+
+    ⚠️ 헤더 판정 조건도 `read_index_titles` 와 **같아야 한다** — `Page Title` 이 있고 그 행에
+       `화면 ID` 열이 있을 때만 헤더로 본다. 조건이 갈리면 두 스크립트가 서로 다른 행을
+       헤더로 잡아 **화면 집합 자체가 어긋난다**(같이 읽으라고 맞춘 것이 도로 갈라진다).
     """
     p = os.path.join(ws, "00_screen_index.md")
     out = set()
     if not os.path.isfile(p):
         return out
     lines = open(p, encoding="utf-8").readlines()
-    # 헤더 행 찾기 — `화면 ID` 가 있는 표 행 (파일 끝까지 스캔)
+    # 헤더 행 찾기 — `Page Title` + `화면 ID` 가 함께 있는 표 행 (파일 끝까지 스캔)
     id_col = None
     header_idx = None
     for i, hdr_line in enumerate(lines):
@@ -59,6 +66,8 @@ def _index_screens(ws: str) -> set:
             continue
         cells = [c.strip() for c in hdr_line.split("|")[1:-1]]
         if cells and cells[0].startswith("-"):  # 구분선 건너뛰기
+            continue
+        if "Page Title" not in cells:
             continue
         for j, cell in enumerate(cells):
             if "화면 ID" in cell:
@@ -78,6 +87,34 @@ def _index_screens(ws: str) -> set:
         cells = [c.strip() for c in line.split("|")[1:-1]]
         if len(cells) > id_col and cells[id_col]:
             out.add(cells[id_col])
+    return out
+
+
+def _md_screens(text: str, candidates) -> set:
+    """MD 본문의 `### ` 헤딩이 가리키는 화면 ID 집합.
+
+    `render_digest.py` 는 `### {화면ID} {화면명} 〈{페이지}〉` 로 쓴다. 헤딩만 보고는 ID 가
+    어디서 끝나는지 알 수 없으므로 **후보(TSV 의 화면 ID) 중 가장 긴 것**으로 판정한다.
+
+    ⚠️ 문자열 포함(`sid in text`)으로 보면 안 된다 — 실측 인덱스에 **접두 쌍이 11건** 있다
+       (`VIOE-04_04_02` ⊂ `VIOE-04_04_02-01`). 짧은 쪽이 MD 에서 통째로 빠져도 긴 쪽 헤딩
+       안에서 발견되어 **`MD_MISSING` 이 영영 울리지 않는다.** 11건 중 2건은 공백으로만
+       갈린다(`VIOE-02_01_01-10` ⊂ `VIOE-02_01_01-10 (flow)`) — 그래서 낱말 경계로도
+       부족하고 **집합 비교**여야 한다.
+    """
+    out = set()
+    for line in text.splitlines():
+        if not line.startswith("### "):
+            continue
+        head = line[4:].strip()
+        best = ""
+        for sid in candidates:
+            if not sid:
+                continue
+            if (head == sid or head.startswith(sid + " ")) and len(sid) > len(best):
+                best = sid
+        if best:
+            out.add(best)
     return out
 
 
@@ -114,16 +151,20 @@ def check(ws: str, total_pages=None) -> list:
             v.append(("Critical", "NO_MD", "%s 가 없다 — render_digest.py 를 먼저 돌린다"
                       % os.path.basename(p)))
     if all(os.path.isfile(p) for p in (md_f, md_c)):
-        tf = open(md_f, encoding="utf-8").read()
-        tc = open(md_c, encoding="utf-8").read()
+        in_f = _md_screens(open(md_f, encoding="utf-8").read(), tsv_ids)
+        in_c = _md_screens(open(md_c, encoding="utf-8").read(), tsv_ids)
         for sid in sorted(tsv_ids - {GLOBAL_ID}):
-            if sid not in tf:
+            if sid not in in_f:
                 v.append(("Critical", "MD_MISSING", "`%s` 가 03_기능_전체.md 에 없다" % sid))
-            if sid not in tc:
+            if sid not in in_c:
                 v.append(("Critical", "MD_MISSING", "`%s` 가 04_신규변경.md 에 없다" % sid))
-        for sid in sorted(_index_screens(ws) - tsv_ids):
-            v.append(("Critical", "SCREEN_MISSING",
-                      "인덱스의 `%s` 가 TSV 에 없다 — 처리되지 않은 화면이다" % sid))
+
+    # 화면 커버리지는 렌더 여부와 무관하다 — MD 가 없어도 본다.
+    # ⚠️ 이 검사를 MD 존재 조건 안에 두면, 렌더가 안 돈 실행에서 **처리되지 않은 화면이
+    #    통째로 보고되지 않는다**(출력이 `NO_MD` 두 줄뿐이다).
+    for sid in sorted(_index_screens(ws) - tsv_ids):
+        v.append(("Critical", "SCREEN_MISSING",
+                  "인덱스의 `%s` 가 TSV 에 없다 — 처리되지 않은 화면이다" % sid))
 
     if total_pages:
         missing = [p for p in range(1, int(total_pages) + 1) if p not in seen_pages]
@@ -136,9 +177,12 @@ def check(ws: str, total_pages=None) -> list:
 
 
 def _selftest() -> int:
+    import contextlib
+    import io
     import tempfile
     fails = []
     ran = []
+    injected = set()
 
     def chk(name, cond, detail=""):
         ran.append(name)
@@ -150,6 +194,15 @@ def _selftest() -> int:
 
     def codes(ws, pages=None):
         return {c for _g, c, _m in check(ws, pages)}
+
+    def chk_hit(name, ws, code, pages=None):
+        """심어 둔 위반을 실제로 잡는지 본다. 잡으라고 심은 코드를 집계한다.
+
+        ⚠️ 건수를 손으로 세어 적으면 낡는다 — 실행이 센 값만 출력한다.
+        """
+        injected.add(code)
+        got = codes(ws, pages)
+        chk(name, code in got, got)
 
     def build(ws, tsv_rows, md_ids=None, index_ids=None):
         with open(os.path.join(ws, "02_features_s01.tsv"), "w", encoding="utf-8") as f:
@@ -171,15 +224,16 @@ def _selftest() -> int:
         chk("S1 정상 입력은 위반 0건", codes(ws) == set(), codes(ws))
 
     with tempfile.TemporaryDirectory() as ws:
+        injected.add("NO_TSV")
         chk("S2 TSV 가 없으면 NO_TSV", codes(ws) == {"NO_TSV"}, codes(ws))
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [["VIOE-01", "기능", "설명", "신설", "[스티커 p001]", "p001", ""]])
-        chk("S3 분류 enum 밖이면 CLASS_ENUM", "CLASS_ENUM" in codes(ws), codes(ws))
+        chk_hit("S3 분류 enum 밖이면 CLASS_ENUM", ws, "CLASS_ENUM")
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [["VIOE-01", "기능", "설명", "삭제", "", "p001", ""]])
-        chk("S4 삭제 행의 근거 공란은 NO_EVIDENCE", "NO_EVIDENCE" in codes(ws), codes(ws))
+        chk_hit("S4 삭제 행의 근거 공란은 NO_EVIDENCE", ws, "NO_EVIDENCE")
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [["VIOE-01", "기능", "설명", "확인 필요", "", "p001", ""]])
@@ -187,27 +241,26 @@ def _selftest() -> int:
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [ok_row], md_ids=[])
-        chk("S6 MD 에 화면이 없으면 MD_MISSING", "MD_MISSING" in codes(ws), codes(ws))
+        chk_hit("S6 MD 에 화면이 없으면 MD_MISSING", ws, "MD_MISSING")
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [ok_row], index_ids=["VIOE-01", "VIOE-02"])
-        chk("S7 인덱스에 있는데 TSV 에 없으면 SCREEN_MISSING",
-            "SCREEN_MISSING" in codes(ws), codes(ws))
+        chk_hit("S7 인덱스에 있는데 TSV 에 없으면 SCREEN_MISSING", ws, "SCREEN_MISSING")
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [ok_row])
         os.remove(os.path.join(ws, "03_기능_전체.md"))
-        chk("S8 MD 가 없으면 NO_MD", "NO_MD" in codes(ws), codes(ws))
+        chk_hit("S8 MD 가 없으면 NO_MD", ws, "NO_MD")
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [ok_row])
         with open(os.path.join(ws, "02_features_s02.tsv"), "w", encoding="utf-8") as f:
             f.write("A\tB\tC\n")
-        chk("S9 열 수가 틀리면 TSV_COLS", "TSV_COLS" in codes(ws), codes(ws))
+        chk_hit("S9 열 수가 틀리면 TSV_COLS", ws, "TSV_COLS")
 
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [ok_row])
-        chk("S10 귀속 안 된 페이지는 PAGE_GAP(Major)", "PAGE_GAP" in codes(ws, 3), codes(ws, 3))
+        chk_hit("S10 귀속 안 된 페이지는 PAGE_GAP(Major)", ws, "PAGE_GAP", 3)
         chk("S11 전 페이지가 귀속되면 PAGE_GAP 없음",
             "PAGE_GAP" not in codes(ws, 1), codes(ws, 1))
 
@@ -228,7 +281,64 @@ def _selftest() -> int:
         got = _index_screens(ws)
         chk("S13 화면 표 밖의 번호 표는 읽지 않는다", got == {"VIOE-01"}, got)
 
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [["", "기능", "설명", "신규", "[스티커 p001]", "p001", ""]])
+        chk_hit("S14 화면 ID 공란은 NO_SCREEN_ID", ws, "NO_SCREEN_ID")
+
+    # 접두 쌍 — 짧은 ID 가 긴 ID 의 부분 문자열이다(실측 인덱스에 11건).
+    # 문자열 포함으로 보면 짧은 쪽이 MD 에서 빠져도 긴 쪽 헤딩 안에서 발견되어 조용히 통과한다.
+    short_row = ["VIOE-04_04_02", "기능", "설명", "신규", "[스티커 p001]", "p001", ""]
+    long_row = ["VIOE-04_04_02-01", "기능", "설명", "신규", "[스티커 p002]", "p002", ""]
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [short_row, long_row], md_ids=["VIOE-04_04_02-01"])
+        chk_hit("S15 접두 쌍 중 짧은 ID 가 MD 에 없으면 MD_MISSING", ws, "MD_MISSING")
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [short_row, long_row])
+        c = codes(ws)
+        chk("S16 접두 쌍이 둘 다 MD 에 있으면 오탐 없음", c == set(), c)
+
+    # 공백으로만 갈리는 접두 쌍(실측 `VIOE-02_01_01-10` ⊂ `VIOE-02_01_01-10 (flow)`).
+    # 낱말 경계로도 갈리지 않으므로 집합 비교여야 잡힌다.
+    sp_short = ["VIOE-02_01_01-10", "기능", "설명", "신규", "[스티커 p113]", "p113", ""]
+    sp_long = ["VIOE-02_01_01-10 (flow)", "기능", "설명", "신규", "[스티커 p114]", "p114", ""]
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [sp_short, sp_long], md_ids=["VIOE-02_01_01-10 (flow)"])
+        chk_hit("S17 공백으로만 갈리는 접두 쌍도 MD_MISSING", ws, "MD_MISSING")
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [sp_short, sp_long])
+        c = codes(ws)
+        chk("S18 공백 접두 쌍이 둘 다 있으면 오탐 없음", c == set(), c)
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [ok_row], index_ids=["VIOE-01", "VIOE-02"])
+        os.remove(os.path.join(ws, "03_기능_전체.md"))
+        os.remove(os.path.join(ws, "04_신규변경.md"))
+        c = codes(ws)
+        chk("S19 MD 가 없어도 SCREEN_MISSING 은 본다", "SCREEN_MISSING" in c, c)
+
+    # CLI 종료 코드 — `1` 은 *Major 만 있음*이므로 잘못된 인자가 `1` 로 나가면 안 된다.
+    def exit_code(argv):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            return main(argv)
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [ok_row])
+        chk("S20 정상 입력의 종료 코드는 0", exit_code(["--ws=" + ws]) == 0)
+        chk("S21 --pages 가 정수가 아니면 종료 코드 3(실행 오류)",
+            exit_code(["--ws=" + ws, "--pages=abc"]) == 3)
+        chk("S22 --pages=0 도 종료 코드 3", exit_code(["--ws=" + ws, "--pages=0"]) == 3)
+        chk("S23 --ws 없이 부르면 종료 코드 3", exit_code([]) == 3)
+        chk("S24 Major 만 있으면 종료 코드 1", exit_code(["--ws=" + ws, "--pages=3"]) == 1)
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [["VIOE-01", "기능", "설명", "신설", "[스티커 p001]", "p001", ""]])
+        chk("S25 Critical 이 있으면 종료 코드 2", exit_code(["--ws=" + ws]) == 2)
+
     print()
+    print("  심어 둔 위반 %d종: %s" % (len(injected), ", ".join(sorted(injected))))
     if fails:
         print("selftest FAIL — %d건: %s" % (len(fails), ", ".join(fails)))
         return 1
@@ -247,8 +357,18 @@ def main(argv: list) -> int:
     ws = opt.get("ws")
     if not ws:
         print(__doc__)
-        return 1
-    viol = check(ws, opt.get("pages"))
+        return 3
+    pages = opt.get("pages")
+    if pages is not None:
+        try:
+            pages = int(pages)
+        except ValueError:
+            print("실행 오류: --pages 는 정수여야 한다 — 받은 값 %r" % opt.get("pages"))
+            return 3
+        if pages < 1:
+            print("실행 오류: --pages 는 1 이상이어야 한다 — 받은 값 %r" % opt.get("pages"))
+            return 3
+    viol = check(ws, pages)
     if not viol:
         print("✅ 결정적 점검 위반 0건")
         return 0
