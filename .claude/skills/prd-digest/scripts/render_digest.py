@@ -92,11 +92,15 @@ def read_index_titles(ws: str) -> dict:
                 break  # 헤더 찾았음
     if title_col is None or id_col is None or header_idx is None:
         return out  # 필수 헤더 없음 — 폴백
-    # 데이터 행 읽기 (헤더와 구분선 건너뛰기)
+    # 데이터 행 읽기 (헤더와 구분선 건너뛰고, 표 끝에서 멈춤)
     for i, line in enumerate(lines):
         if i <= header_idx + 1:  # 헤더와 구분선 건너뛰기
             continue
-        if not line.startswith("|") or re.match(r"\|\s*-", line):
+        # 표 끝 감지 (| 로 시작하지 않는 행 = 표 외 영역)
+        if not line.startswith("|"):
+            break
+        # 구분선은 건너뛰기
+        if re.match(r"\|\s*-", line):
             continue
         cells = [c.strip() for c in line.split("|")[1:-1]]
         if len(cells) > max(id_col, title_col):
@@ -420,6 +424,30 @@ def _selftest() -> int:
         finally:
             import shutil
             shutil.rmtree(ws6)
+
+        # S17 — 표 끝에서 멈춘다. 후속 다른 표 포함해도 무시 (3-B)
+        ws7 = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(ws7, "00_screen_index.md"), "w", encoding="utf-8") as f:
+                f.write("| 순번 | 화면 ID(원문) | Page Title |\n|---|---|---|\n")
+                f.write("| 01 | VIOE-GG_GG_GG | 화면_G |\n")
+                f.write("| 02 | VIOE-HH_HH_HH | 화면_H |\n")
+                f.write("\n")  # 표 끝 (빈 줄)
+                f.write("## 간지 표\n\n")  # 다른 섹션
+                f.write("| 색 | 제목 |\n|---|---|\n")
+                f.write("| 남색 | 잘못된_제목_1 |\n")
+                f.write("| 보라 | 잘못된_제목_2 |\n")
+                f.write("| 색 | 잘못된_제목_3 |\n")
+            titles7 = read_index_titles(ws7)
+            # 첫 표만 읽어야 함 — 간지 표의 키는 없어야 함
+            has_screen_ids = "VIOE-GG_GG_GG" in titles7 and "VIOE-HH_HH_HH" in titles7
+            has_no_invalid = "남색" not in titles7 and "보라" not in titles7 and "색" not in titles7
+            chk("S17 표 경계 인식 — 후속 표 무시",
+                len(titles7) == 2 and has_screen_ids and has_no_invalid,
+                "count=%d, invalid_keys=%s" % (len(titles7), [k for k in titles7 if k in ("남색", "보라", "색")]))
+        finally:
+            import shutil
+            shutil.rmtree(ws7)
 
     print()
     if fails:
