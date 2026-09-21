@@ -1,0 +1,1 @@
+../.claude/skills/prd-digest/scripts/parse_menu_ia.py

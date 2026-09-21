@@ -46,6 +46,7 @@ def check_packages():
         ("google.auth", "google-auth", "서비스 계정 인증", True),
         ("googleapiclient", "google-api-python-client", "Sheets API 호출", True),
         ("google_auth_oauthlib", "google-auth-oauthlib", "새 시트 생성(OAuth2)", False),
+        ("openpyxl", "openpyxl", "메뉴 IA 엑셀 읽기", True),
     ]
     missing = []
     for mod, pip_name, purpose, required in pkgs:
@@ -65,7 +66,7 @@ def check_symlinks():
         "figma_api.py", "pdf_to_images.py", "detect_red_regions.py",
         "detect_strikethrough.py", "check_image_quality.py", "prd_cache.py",
         "build_brief.py", "read_tc_inventory.py", "verify_sheet_rows.py",
-        "sheets_api.py", "oauth_sheet.py",
+        "sheets_api.py", "oauth_sheet.py", "parse_menu_ia.py",
     ]
     broken = []
     for name in expected:
