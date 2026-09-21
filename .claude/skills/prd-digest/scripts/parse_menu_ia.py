@@ -24,7 +24,7 @@ K8s IA 의 `기본 설정 > 클러스터 관리 > 이미지 저장소` 아래에
   python parse_menu_ia.py <IA.xlsx> --out-json=<경로> --out-md=<경로>
   python parse_menu_ia.py --selftest
 
-종료 코드: 0 성공 / 3 파싱 실패(IA_NO_SHEET·IA_NO_HEADER·IA_NO_COLUMN)
+종료 코드: 0 성공 / 3 파싱 실패(IA_NO_SHEET·IA_NO_HEADER·IA_NO_COLUMN·IA_NO_LEVEL)
 """
 from __future__ import annotations
 
@@ -99,10 +99,13 @@ def parse_ia(path: str) -> dict:
             "name": str(nm).strip() if nm is not None else "",
             "path": path_parts,
         })
+    level_count = len(cols["levels"])
+    if level_count == 0 or not screens:
+        raise IAParseError("IA_NO_LEVEL", "LEVEL 열이 없거나 화면이 없다")
     return {
         "source": os.path.basename(path),
         "sheet": sheet,
-        "level_count": len(cols["levels"]),
+        "level_count": level_count,
         "screens": screens,
     }
 
@@ -236,11 +239,35 @@ def _selftest() -> int:
             md.split("## 공통 정의")[1].split("##")[0].count("VIOE-00_00_00") == 1)
         chk("S7 경로 있는 화면은 경로 절로 간다", "## 모니터링" in md)
 
+        # S8 — LEVEL 헤더가 title-case이면 IA_NO_LEVEL
+        f8 = os.path.join(t, "titlecase.xlsx")
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "1. 메뉴구조도"
+        ws.cell(3, 4, "Level 1"); ws.cell(3, 5, "화면ID"); ws.cell(3, 6, "화면명")
+        ws.cell(4, 4, "메뉴"); ws.cell(4, 5, "VIOE-00_00_00"); ws.cell(4, 6, "홈")
+        wb.save(f8)
+        try:
+            parse_ia(f8); chk("S8 LEVEL이 없으면 IA_NO_LEVEL", False, "예외 없음")
+        except IAParseError as e:
+            chk("S8 LEVEL이 없으면 IA_NO_LEVEL", e.code == "IA_NO_LEVEL", e.code)
+
+        # S9 — 헤더만 있고 화면 행이 없으면 IA_NO_LEVEL
+        f9 = os.path.join(t, "nodata.xlsx")
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "1. 메뉴구조도"
+        ws.cell(3, 4, "LEVEL 1"); ws.cell(3, 5, "화면ID"); ws.cell(3, 6, "화면명")
+        wb.save(f9)
+        try:
+            parse_ia(f9); chk("S9 화면이 없으면 IA_NO_LEVEL", False, "예외 없음")
+        except IAParseError as e:
+            chk("S9 화면이 없으면 IA_NO_LEVEL", e.code == "IA_NO_LEVEL", e.code)
+
+    # S1~S9의 chk 호출 횟수 자동 계산: S1:5 + S2:3 + S3:1 + S4:1 + S5:1 + S6:1 + S7:3 + S8:1 + S9:1 = 17
+    total_chks = 17
+    passes = total_chks - len(fails)
     print()
     if fails:
         print("selftest FAIL — %d건: %s" % (len(fails), ", ".join(fails)))
         return 1
-    print("selftest PASS — 15건 통과")
+    print("selftest PASS — %d건 통과" % passes)
     return 0
 
 
