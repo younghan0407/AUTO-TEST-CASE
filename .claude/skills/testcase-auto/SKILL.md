@@ -35,7 +35,7 @@ description: 기획서(PRD)를 분석하여 팀 양식에 맞는 테스트 케�
 _workspace/
 ├── VIOLA-K8s_4.0_v1/          ← {디렉터리명}. 0-2 (6)에서 확정한다
 │   ├── shared/                ← {SHARED} : 이미지 · 색 검출 · 취소선 · 판독 품질 + manifest.json
-│   ├── digest/                ← 기획서 분석 (prd-digest) — 예정 (별도 스펙)
+│   ├── digest/                ← 기획서 분석 (prd-digest) — 기능 목록·신규변경 문서 2개
 │   └── testcase/              ← {WS} : 이 절차의 산출물
 └── augment/                   ← testcase-augment (제품·버전 폴더 밖)
 ```

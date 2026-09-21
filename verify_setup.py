@@ -85,9 +85,9 @@ def check_symlinks():
 def check_harness_files():
     skills = os.path.join(ROOT, ".claude", "skills")
     agents = os.path.join(ROOT, ".claude", "agents")
-    need_skills = ["prd-analyzer", "sheet-operator", "testcase-auto",
+    need_skills = ["prd-analyzer", "prd-digest", "sheet-operator", "testcase-auto",
                    "testcase-augment", "testcase-generator", "testcase-reviewer"]
-    need_agents = ["prd-analyst.md", "sheet-analyst.md",
+    need_agents = ["prd-analyst.md", "prd-digester.md", "sheet-analyst.md",
                    "testcase-writer.md", "testcase-reviewer.md",
                    "tc-augmenter.md"]
     miss = [s for s in need_skills if not os.path.isfile(os.path.join(skills, s, "SKILL.md"))]

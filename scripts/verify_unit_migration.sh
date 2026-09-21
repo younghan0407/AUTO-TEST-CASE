@@ -92,6 +92,28 @@ present() { # $1=라벨 $2=ERE 패턴 $3..=파일
   fi
 }
 
+exists() { # $1=라벨 $2..=파일 — `absent` 계열에 넘기는 배열의 경로가 실재하는지 본다.
+           # `absent` 는 `grep ... 2>/dev/null` 이라 **없는 파일에 대해 아무것도 내지 않고
+           # `ok` 를 찍는다.** 경로 하나가 오타이거나 다른 배열에 잘못 들어가면 그 파일에
+           # 걸린 금지 검사가 통째로 사라지는데 전체는 PASS 로 보인다(Task 4 에서 실제로
+           # 그랬다). 여기 오는 배열은 전부 커밋된 하네스 파일이다 — 선택적으로 없을 수
+           # 있는 파일은 `absent` 로 검사할 수 없으므로 애초에 이 배열에 넣지 않는다.
+  local label="$1"; shift
+  local f missing=""
+  for f in "$@"; do
+    [ -e "$f" ] || missing="$missing $f"
+  done
+  if [ -n "$missing" ]; then
+    printf 'FAIL  %s — 파일 없음:%s\n' "$label" "$missing"
+    fail=1
+  else
+    printf 'ok    %s (%d개)\n' "$label" "$#"
+  fi
+}
+
+echo "── 가드 자체 점검 ─────────────────────────────────────────"
+exists "금지 검사 대상 파일 실재" "${CORE[@]}" "${DOCS[@]}" "${NOWS[@]}" "${ORCH[@]}"
+
 echo "── 금지: 챕터 처리 단위 잔존 ──────────────────────────────"
 absent "산출물 접미사 _ch{N}"        '_ch\{N\}'                "${CORE[@]}" "${DOCS[@]}"
 absent "00_chapters.md 참조"          '00_chapters'             "${CORE[@]}" "${DOCS[@]}"
@@ -329,6 +351,33 @@ present "두 MD 는 한 TSV 에서 렌더" '한 벌의 TSV|같은 TSV 에서' \
 # 적중이고, 그 줄을 지우면 나머지 두 줄이 남아 있어도 FAIL 한다.
 present "TROMBONE 미지원"          'TROMBONE.{0,3}을 고르면 진행하지 않' \
         .claude/skills/prd-digest/SKILL.md
+
+# 트리거 충돌 가드 — `CLAUDE.md` 의 트리거 절이 `기획서 분석` 을 `testcase-auto` 로 보내고
+# 있었다(2026-09-21 이전). 그 상태에서는 이 절차가 **문서에만 있고 아무도 부르지 않는다.**
+# 분기 표에서 `prd-digest` 가 사라지면 같은 상태로 조용히 되돌아가므로 선언을 못 박는다.
+present "기획서 분석 트리거 분기" 'prd-digest' CLAUDE.md
+
+# `분류 5종` 선언 자체를 묶는다 — 위의 두 가드는 `확인 필요` 와 `미변경` 을 **낱말로만** 본다.
+# 그래서 다섯을 나열한 그 문장을 두 파일에서 통째로 지워도, 다른 문단에 낱말이 한 번씩만
+# 남아 있으면 둘 다 `ok` 가 찍힌다. 분류가 몇 종인지를 선언하는 곳이 사라지면
+# 에이전트는 자기가 아는 값을 쓰고 `verify_digest.py` 의 `CLASS_ENUM` 이 뒤늦게 잡는다.
+present "분류 5종 선언" '신규.{0,8}변경.{0,8}삭제.{0,8}확인 필요.{0,8}미변경' \
+        .claude/skills/prd-analyzer/references/digest-mode.md \
+        .claude/agents/prd-digester.md
+
+# 렌더러와 점검기는 같은 상수를 **각자 선언한다**(공용 모듈을 두지 않았다 — 스크립트 3개가
+# 서로를 import 하지 않는 것이 이 저장소의 관행이다). 한쪽만 고치면 **렌더러가 통과시킨
+# 행을 점검기가 위반으로 잡거나 그 반대**가 되고, 둘 다 자기 기준으로는 옳으므로
+# 어느 `--selftest` 도 울리지 않는다. 그래서 세 상수를 값까지 못 박아 대조한다.
+# 한 패턴으로 합치지 않는 이유는 위 「분류 5종」과 같다 — `present` 는 파일 단위
+# `grep -qE` 라 서로 다른 줄의 세 상수를 한 줄 패턴으로 묶을 수 없고, 알파(`|`)로 이으면
+# 셋 중 하나만 남아도 통과해 오히려 약해진다.
+present "공유 상수 CLASSES 일치" '^CLASSES = \("신규", "변경", "삭제", "확인 필요", "미변경"\)$' \
+        scripts/render_digest.py scripts/verify_digest.py
+present "공유 상수 GLOBAL_ID 일치" '^GLOBAL_ID = "문서 전역"$' \
+        scripts/render_digest.py scripts/verify_digest.py
+present "공유 상수 COLS 일치" '^COLS = 7$' \
+        scripts/render_digest.py scripts/verify_digest.py
 
 echo
 if [ "$fail" -eq 0 ]; then

@@ -68,7 +68,7 @@
 | **신설** `.claude/skills/prd-digest/SKILL.md` | 오케스트레이터 (`0-0` 절 포함) |
 | `CLAUDE.md` | 트리거 분기 · 절차 등재 · `openpyxl` 의존성 · 변경 이력 |
 | `verify_setup.py` | 새 스킬·에이전트·링크 3개 검사 |
-| `scripts/verify_unit_migration.sh` | 회귀 가드 6개 |
+| `scripts/verify_unit_migration.sh` | 회귀 가드 — 이 절차 절에 **11개**(구현 중 5개 추가) + 가드 자체 점검 1개 |
 | 사용자 문서 7종 | 세 번째 절차 등재 |
 
 ### 공용 계약 — 두 스크립트가 같은 것을 다르게 적지 않도록 여기 한 번만 정의한다
@@ -79,7 +79,9 @@
 화면ID	기능명	설명	분류	근거	페이지	메뉴경로_폴백
 ```
 
-- `분류` enum은 **`신규` · `변경` · `삭제` · `확인 필요`** 4종뿐이다
+- `분류` enum은 **`신규` · `변경` · `삭제` · `확인 필요` · `미변경`** 5종뿐이다
+  (계획 당시 4종으로 적었으나 구현 중 `미변경` 이 추가됐다 — 그 값이 없으면 변경 표기가
+  붙지 않은 기능을 담을 자리가 없어 `03_기능_전체.md` 가 전체 목록이 아니게 된다)
 - `메뉴경로_폴백` 은 IA에 없는 화면에만 채운다(`>` 로 구분). IA에 있으면 빈칸
 - 셀 안에 탭·개행을 넣지 않는다
 
@@ -1630,20 +1632,24 @@ Expected: 마지막 `grep` 은 **오케스트레이터 SKILL 3종의 `0-0` 절�
 
 ## 완료 기준
 
+> **표의 수치는 구현 후 실측으로 갱신했다.** 각 Task 본문에 적힌 `15`·`19`·`12` 건과
+> 「가드 6개」는 **계획 시점의 의도**이고, 구현 중 검사가 늘어 실제는 아래 값이다.
+> 본문은 기록이므로 고치지 않는다 — 판정 기준은 이 표다.
+
 | 검사 | 기대 |
 |------|------|
-| `parse_menu_ia.py --selftest` | `selftest PASS — 15건 통과` |
-| `render_digest.py --selftest` | `selftest PASS — 19건 통과` |
-| `verify_digest.py --selftest` | `selftest PASS — 12건 통과` |
+| `parse_menu_ia.py --selftest` | `selftest PASS — 17건 통과` |
+| `render_digest.py --selftest` | `selftest PASS — 33건 통과` |
+| `verify_digest.py --selftest` | `selftest PASS — 32건 통과` |
 | `prd_cache.py --selftest` | `selftest PASS — 37건 통과` |
 | `verify_sheet_rows.py --selftest` | 위반 17종 검출 + 오탐 0건 |
 | `read_tc_inventory.py --selftest` | `PASS` |
-| `verify_unit_migration.sh` | `PASS` (신설 가드 **6개** 포함) |
+| `verify_unit_migration.sh` | `PASS` (이 절차 절 **11개** + 가드 자체 점검 1개) |
 | `build_brief.py --coverage-check` | `✅ 전 절 배정 완료 · 유령 배정 0건` |
 | `verify_setup.py` | 링크 14개 · 스킬 7개 · 에이전트 6개 |
 | `_workspace` 전수 | 오케스트레이터 SKILL 3종의 `0-0` 절만 |
 
-**음성 대조를 건너뛴 가드는 완료로 치지 않는다.** 가드 6개 각각에 위반을 주입해 `FAIL` 을
+**음성 대조를 건너뛴 가드는 완료로 치지 않는다.** 신설 가드 각각에 위반을 주입해 `FAIL` 을
 확인하고 원복한 기록이 있어야 한다 — 통과만 확인하면 패턴이 약해 선언이 사라져도 통과하는
 경우를 놓친다(2026-09-15 「권위 선언」, 2026-09-19 「작업 루트 변수 표기」 둘 다 그랬다).
 

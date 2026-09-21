@@ -107,12 +107,12 @@ testcase-auto/
 │   └── memory/
 │       └── feedback_tc_completeness.md   # 누락·요약 금지 피드백
 ├── .credentials/                 # 서비스 계정 키, OAuth 토큰 (gitignore)
-├── scripts/                      # 루트 실행용 심볼릭 링크 11개 + 회귀 가드 (원본은 각 스킬 하위)
+├── scripts/                      # 루트 실행용 심볼릭 링크 14개 + 회귀 가드 (원본은 각 스킬 하위)
 ├── PDF/                          # 입력 기획서 PDF
 └── _workspace/                   # 실행 산출물 (gitignore)
     ├── VIOLA-K8s_4.0_v1/         #   {제품}_{제품버전}_{문서회차} — Phase 0에서 확정
     │   ├── shared/               #     이미지·검출 결과 + manifest.json (절차끼리 공용)
-    │   ├── digest/               #     기획서 분석 (prd-digest) — 예정 (별도 스펙)
+    │   ├── digest/               #     기획서 분석 (prd-digest) — 기능 목록·신규변경 문서
     │   └── testcase/             #     테스트 케이스 산출물
     └── augment/                  #   추가 작업 (원천이 시트라 제품·버전 폴더 밖)
 ```
@@ -121,9 +121,9 @@ testcase-auto/
 
 ## 3. 구성 요소
 
-### 3-1. 에이전트 5개 (`.claude/agents/`)
+### 3-1. 에이전트 6개 (`.claude/agents/`)
 
-모두 `type: general-purpose`. `model` 은 단계별로 다르다 — `prd-analyst`·`testcase-reviewer` 는 `opus`, `testcase-writer`·`sheet-analyst`·`tc-augmenter` 는 `sonnet`.
+모두 `type: general-purpose`. `model` 은 단계별로 다르다 — `prd-analyst`·`testcase-reviewer`·`prd-digester` 는 `opus`, `testcase-writer`·`sheet-analyst`·`tc-augmenter` 는 `sonnet`.
 
 | 에이전트 | 역할 | 사용 스킬 | 산출물 |
 |---------|------|----------|--------|
@@ -132,6 +132,7 @@ testcase-auto/
 | **testcase-writer** | 분석 결과 + 양식 → 실제 TC 도출 및 시트 batch 작성 | `testcase-generator`, `sheet-operator` | `03_testcases_s{NN}.md` + 시트 행 |
 | **testcase-reviewer** | 3개 경계면 교차 검증 QA | `testcase-reviewer`, `sheet-operator` | `04_review_report_s{NN}.md` |
 | **tc-augmenter** | **기존 TC 인벤토리 + (권한) 매트릭스 → 파생 케이스 도출 및 시트 batch 작성.** 기획서를 읽지 않는다 | `testcase-generator`(참조 2종), `sheet-operator` | `12_cases_{EX\|PM}-B{NN}.md` + `13_rows_*.tsv` + 시트 행 |
+| **prd-digester** | **기획서 판독 → 기능 단위 요약 + 신규·변경·삭제 판정.** 케이스를 만들지 않고 시트를 쓰지 않는다 | `prd-analyzer`(`references/digest-mode.md`) | `02_screen_s{NN}.md` + `02_features_s{NN}.tsv` |
 
 각 에이전트 정의는 동일한 6개 섹션 구조를 가진다: 핵심 역할 / 작업 원칙 / 입력 프로토콜 / 출력 프로토콜 / 팀 통신 프로토콜 / 에러 핸들링 / 재호출 지침 / 사용 스킬.
 
@@ -143,12 +144,13 @@ testcase-auto/
 - `testcase-reviewer` — 임의 수정 금지(발견만 보고, 수정은 writer), TC-ID·컬럼명 단위 구체 지적, **기획서 유형별 판정 기준 분리**(변경분 모드에서 비변경분 미작성을 "누락"으로 지적하는 것은 오판), 재검토 시 이전 보고서와 개선도 비교
 - `tc-augmenter` — **원천이 기획서가 아니라 기존 테스트 케이스다.** 오케스트레이터가 준 값(작업 유형·프로파일·기능 단위 목록·TC ID/`No` 시작 번호·확정된 권한 대응표)을 **재판정하지 않고 그대로 쓴다**, `화면 ID`·`1~3 Depth` 는 원본 승계(유추 금지), 중복 판정 근거는 인벤토리의 기존 커버리지 맵, 예상 결과는 동작 수준까지만(문구·코드·지연은 `[기획 확인]`), **분포를 프로파일에 맞추려 하지 않는다**(정의상 일부 구분만 만든다)
 
-### 3-2. 스킬 6개 + 양식 사양 + 외부 메타 스킬
+### 3-2. 스킬 7개 + 양식 사양 + 외부 메타 스킬
 
 | 스킬 | 유형 | 역할 | 번들 스크립트 |
 |------|------|------|--------------|
 | **testcase-auto** | 오케스트레이터 | Phase 0~6 전체 파이프라인 지휘, **기본 정보 7개 수집 게이트**, 화면 루프 제어, 사용자 게이트 관리 | — |
 | **testcase-augment** | 오케스트레이터 | **두 번째 절차 — 기존 테스트 케이스가 원천.** `예외 사항`·`권한` **중 하나**의 Phase 0~4 지휘, 게이트 3곳(권한 판독 / 규모 / 첫 배치), 배치 루프. 예외 모드는 **범위(`화면 ID` 목록)** 를 Phase 0 필수로 받는다. 기획서를 읽지 않고 제품 유형은 `솔루션` 실측으로 판정한다. 구글 시트 전용(엑셀 미지원) | `read_tc_inventory.py` |
+| **prd-digest** | 오케스트레이터 | **세 번째 절차 — 기획서가 원천이되 케이스를 만들지 않는다.** Phase 0~5 지휘, 게이트 3곳(기본 정보 / 화면 인덱스 / 첫 배치), 화면 배치 루프. 산출물은 **사람이 읽는 MD 2개**(`03_기능_전체.md` 메뉴 구조 축 · `04_신규변경.md` 변경 축)이며 **구글 시트를 쓰지 않는다.** `.claude/formats/`·`build_brief.py`·`sheet-analyst` 를 쓰지 않는다. **`TROMBONE` 미지원** | `parse_menu_ia.py`, `render_digest.py`, `verify_digest.py` |
 | **양식 사양** (`.claude/formats/`) | 데이터 | **공통 골격 1 + 제품 프로파일 3.** 컬럼 구조는 **전 제품 A~W 23컬럼 통일**. 케이스를 쓰려면 `common.md` **+ 해당 프로파일 두 개를 함께** 읽는다 | — |
 | **prd-analyzer** | 실행 절차 | 입력 유형 판별(Figma/PDF/이미지) → (PDF만) 이미지 변환 → 판독 품질 게이트 → 시각 분석 절차. **입력 유형·정책별 절은 `references/` 로 분리**(변경분 모드가 본문의 34%였다) | `figma_api.py`, `pdf_to_images.py`, `detect_red_regions.py`, `detect_strikethrough.py`, `check_image_quality.py` |
 | **sheet-operator** | 도구 | Google Sheets 읽기·쓰기·메타·탭 추가, 하이브리드 인증 | `sheets_api.py`, `oauth_sheet.py` |
@@ -178,7 +180,7 @@ testcase-auto/
 > **제안값**이다. 이 둘은 전 행에 박히는 상수라 나중에 바꾸려면 열 전체를 고쳐야 한다.
 > **팀 BF 원본 시트가 나오면 전수 스캔(모드 B)으로 교체하는 것이 정공법이다.**
 
-### 3-3. 스크립트 12개
+### 3-3. 스크립트 15개
 
 원본은 `.claude/skills/<스킬>/scripts/`에 있고, 프로젝트 루트 `scripts/`에 상대 심볼릭 링크가 걸려 있다. **모든 명령은 프로젝트 루트에서 `scripts/...` 경로로 실행한다.**
 
@@ -190,6 +192,9 @@ testcase-auto/
 | `verify_sheet_rows.py` | **작성된 시트 행의 결정적(기계 판정) 양식 점검 + 로컬↔시트 전 셀 대조(`--diff`).** 헤더 원문·23컬럼·`피드백` 뒤 열 오염 · enum(우선순위·구분·`3 Depth`) · 구분×우선순위 결합 규칙 · `솔루션` 단일값 · `기능테스트 ID` 형식·중복 · `No` 연속성·중복 · Depth `-` vs 미사용 빈칸 · `비고`·`사전조건` 공란 · 절차 `N. ` 접두 · 예상 결과 명사형 · 본문 열 문체(백틱↔대괄호) · 셀 내 `\|`. **규칙은 `common.md` + 프로파일에서 파싱**하며 파싱 실패 시 하드코딩 폴백 없이 종료 코드 `3`. `--selftest` 로 검사기 자체 검증. 종료 코드 0/1/2/3 = 위반없음/Major이하/Critical/실행오류 | `python verify_sheet_rows.py --profile={viola\|trombone\|bootfactory} --sheet=<ID> --tab='<탭>' [--rows=2-56] [--tsv=f.tsv] [--json] [--selftest]` |
 | `read_tc_inventory.py` | **원본 테스트 케이스 인벤토리 — 추가 작업 Phase 1.** 원본 탭을 **스크립트가 읽어** 기능 단위(`화면 ID` + `2 Depth` + `3 Depth`) 목록·**기존 구분 커버리지 맵**·`솔루션` 실측 프로파일 판정·TC ID 접두별 다음 번호(관련 스프레드시트 **전 탭** 최대값)를 낸다. **파생 태그가 붙은 행은 원본에서 제외**(재실행 시 파생의 파생 방지)하되 커버리지에는 센다. **`--screen-id` 는 범위(Phase 0 입력)** — 그 화면의 행만 원천으로 쓰되 **범위 밖 행의 TC ID도 번호 실측에는 센다**(빼면 다음 번호가 이미 쓰인 값과 겹친다). 원본에 없는 화면 ID는 `SCOPE_NO_MATCH` Critical. 헤더 원문·파생 태그 접두·`솔루션` 고정값은 **사양에서 파싱**하며 실패 시 폴백 없이 종료 코드 `3`. 헤더 불일치는 집계하지 않고 Critical 보고만. 산출물 `10_tc_inventory.md` / `.json` | `python read_tc_inventory.py --source-sheet=<ID\|URL> --source-tab='<탭>' [--source-tab=…] [--screen-id='<화면 ID>'] [--target-sheet] [--target-tab] [--source-tsv=f.tsv] [--formats-dir] [--out-dir] [--selftest]` |
 | `prd_cache.py` | **변환된 이미지의 재사용 판정.** 판정 근거를 **경로가 아니라 PDF 내용 해시**로 두고 `shared/manifest.json`(= 완료 마커)과 대조한다 — 같은 PDF·같은 옵션이면 출력이 **SHA-256 까지 동일**하므로 재변환할 이유가 없고(181p 전체 약 10분), **다른 판본으로 만든 이미지를 쓰는 것**이 진짜 위험이라 불일치는 조용히 재변환하지 않고 **중단**한다. 종료 코드 0/2/3/4 = `CACHE_OK`/`CACHE_MISMATCH`/`CACHE_NO_MANIFEST`(매니페스트 부재 **또는 빈 `variants`**)/`CACHE_PARTIAL`(**미등록 variant** 또는 파일 수 불일치). **`check` 에 `--require=` 를 빼면 아는 variant 만 검사해 반만 채워진 트리가 `CACHE_OK` 를 받는다.** `--selftest` 로 검사기 자체 검증 | `python prd_cache.py check --pdf=<pdf> --shared=<경로> --require=full,desc` / `write --pdf= --shared= --variant=name=,dir=,dpi=,tile= --page-count=` |
+| `parse_menu_ia.py` | **메뉴 IA 엑셀 → 메뉴 트리(JSON·MD).** 기획서 분석의 메뉴 축 원천이다 — 메뉴 경로에는 판단할 값이 없고 이미 엑셀에 적혀 있으며, **개정판의 Menu Structure 페이지는 바뀐 가지 위주로만 그려져** 전체 트리가 나오지 않는다. **열 문자를 박지 않는다**(실측: K8s 는 LEVEL 열 4개·화면ID `H`, CI/CD 는 2개·`F` — 고정하면 CI/CD 에서 조용히 엉뚱한 열을 읽는다). **화면 ID 접두로도 거르지 않는다**(K8s IA 에 `CICD-` 접두 화면 7건 실재). 헤더 이름으로 찾고 LEVEL 열 수는 센다. `openpyxl` 필요 | `python parse_menu_ia.py <IA.xlsx> --out-json=<경로> --out-md=<경로>` / `--selftest` |
+| `render_digest.py` | **화면별 TSV 한 벌 → MD 2개 렌더** (`03_기능_전체.md` 메뉴 구조 축 · `04_신규변경.md` 변경 축). **같은 사실을 두 축으로 배열하는 일을 모델에게 두 번 시키면 두 문서가 어긋나므로** 에이전트는 TSV 만 내고 배열은 여기서 한다 — 그래서 **기획서를 다시 읽지 않고 재렌더할 수 있고** 두 MD 를 손으로 고치면 안 된다. 메뉴 경로·화면명은 TSV 에 담지 않고 **여기서 조회**한다(에이전트가 옮겨 적으면 IA 와 어긋난다) | `python render_digest.py --ws=<디렉터리> [--product=] [--doc=]` / `--selftest` |
+| `verify_digest.py` | **기획서 분석 산출물의 결정적 점검** — 분류 enum(5종) · `신규`/`변경`/`삭제` 행의 근거 공란 · 화면 ID 공란 · 인덱스 ↔ TSV 누락(`SCREEN_MISSING`) · TSV ↔ MD 대조 · 페이지 커버리지(`PAGE_GAP`). **`--pages` 를 빼면 페이지 커버리지 검사가 통째로 돌지 않는데 경고가 없다.** 종료 코드 0/1/2/3 = 위반없음/Major이하/Critical/**실행오류**(`3` 을 따로 둔 이유는 파이썬 기본 `1` 이 이 CLI 에서 *Major 만 있음* 으로 오독되기 때문). **점검은 낸 행만 검사한다 — 덜 읽은 화면은 리뷰의 몫** | `python verify_digest.py --ws=<디렉터리> [--pages=<총 페이지 수>]` / `--selftest` |
 | `check_image_quality.py` | 이미지 판독 품질 진단 — 해상도(짧은 변)·선명도(라플라시안 분산)·대비·파일 훼손을 측정해 `OK`/`주의`/`불가` 판정. `불가`가 있으면 종료 코드 `2`(파이프라인 게이트). 지표보다 **실제 판독 결과가 우선** | `python check_image_quality.py <이미지\|디렉터리> [--json=<path>] [--min-short-side=1200] [--min-sharpness=60]` |
 | `figma_api.py` | Figma REST API 클라이언트. `get_file`(depth 지정), `get_file_nodes`, `get_images`, `get_comments`, URL→file key 추출 | `python figma_api.py file\|nodes\|images <url_or_key> ...` |
 | `sheets_api.py` | Sheets API v4 (서비스 계정). **CLI 하위 명령 5개** — `read`/`write`/`append`/`metadata`/`add_tab`. `get_metadata`·`share`·`batch_update`·`create_spreadsheet` 는 **Python 메서드 전용이며 CLI에 없다** (메타 조회의 CLI 이름은 `metadata`, Python 이름은 `get_metadata()`). HTTP 오류를 한국어 힌트가 붙은 `SheetsError`로 래핑 | `python sheets_api.py read\|metadata\|append\|write\|add_tab <url> ...` |

@@ -33,7 +33,7 @@
 │ testcase-auto (오케스트레이터 스킬)                           │
 │ Phase 0~6의 순서·게이트·에러 정책을 규정. 직접 일하지 않는다         │
 └──────────────────────────────────────────────────────────┘
-   │ 서브에이전트 4명에게 작업 할당 (모두 model: opus)
+   │ 서브에이전트 4명에게 작업 할당 (opus: prd-analyst·testcase-reviewer / sonnet: 나머지 둘)
    ├── prd-analyst ──────── 스킬: prd-analyzer ──── 스크립트: pdf_to_images / figma_api /
    │                                               check_image_quality / detect_red_regions /
    │                                               detect_strikethrough
@@ -41,6 +41,10 @@
    ├── testcase-writer ──── 스킬: testcase-generator + sheet-operator
    └── testcase-reviewer ── 스킬: testcase-reviewer + sheet-operator
 ```
+
+오케스트레이터 스킬은 이것 말고 둘 더 있다 — **`testcase-augment`**(원천이 기존 테스트 케이스,
+2-1절)와 **`prd-digest`**(원천은 기획서이나 시트를 쓰지 않는다, 2-2절). 어느 쪽으로 갈지는
+**요청 어휘**로 갈리며 분기표의 단일 출처는 `CLAUDE.md` 트리거 절이다.
 
 **층별 책임 분리가 이 하네스의 핵심 설계다.**
 
@@ -115,7 +119,7 @@ Phase 6  피드백 수집 → 하네스 진화 (harness 메타 스킬)
 _workspace/
 ├── VIOLA-K8s_4.0_v1/          ← {제품}_{제품버전}_{문서회차}. Phase 0 (6)에서 확정
 │   ├── shared/                ← 이미지 · 색 검출 · 취소선 · 판독 품질 + manifest.json
-│   ├── digest/                ← 기획서 분석 (prd-digest) — 예정 (별도 스펙)
+│   ├── digest/                ← 기획서 분석 (prd-digest) — 기능 목록·신규변경 문서 2개
 │   └── testcase/              ← 이 절차의 산출물 (00_/01_/02_/03_/04_)
 └── augment/                   ← testcase-augment (원천이 시트라 제품·버전 폴더 밖)
 ```
@@ -320,6 +324,56 @@ python scripts/detect_strikethrough.py <입력> --min-len=70 --json=_workspace/V
 
 산출물은 `_workspace/augment/` 에 격리된다 (`testcase-auto` 의 `00_*`~`04_*` 와 충돌하지 않는다).
 
+---
+
+## 2-2. 기획서 분석 흐름 (`prd-digest`) — 케이스를 만들지 않는 세 번째 절차
+
+원천은 `testcase-auto` 와 같은 기획서지만 **구글 시트를 쓰지 않는다.** `sheet-analyst`·
+`testcase-writer` 를 호출하지 않고 `.claude/formats/` 와 `build_brief.py` 도 쓰지 않는다 —
+양식 프로파일(문체·분포·enum)은 케이스 작성 규칙이라 적용할 자리가 없다. 브리핑은 1-D 가
+직접 만든다.
+
+| Phase | 하는 일 | 게이트 |
+|-------|--------|--------|
+| **0 기본 정보** | 제품 유형 · 기획서 경로 · **메뉴 IA 엑셀**(선택) · 기획서 유형 · 취소선(`변경` 일 때) · 이미 아는 신규 화면(선택) · 이미 변환된 이미지(선택) + 작업 디렉터리명. **시트·탭·정책 예외·생성 모드는 묻지 않는다** | ◆ 확정값 요약 표 |
+| **1-A 이미지** | `prd_cache.py` → `pdf_to_images.py`(`--tile=auto`) → `check_image_quality.py` → (`변경`) `detect_red_regions.py`·`detect_strikethrough.py`. **`shared/` 는 `testcase-auto` 와 공용** | `불가` 있으면 통보 |
+| **1-B 메뉴 트리** | `parse_menu_ia.py` 가 IA 엑셀 → `00_menu_tree.json`·`.md`. 엑셀이 없으면 기획서 폴백(사실을 머리말에 남긴다) | — |
+| **1-C IA 대조** | IA ↔ 기획서 차이를 **판정에 쓰지 않고 보고만** 한다 | — |
+| **1-E 화면 인덱스** | `prd-digester` 1회 — 얕은 스캔으로 화면 목록·배치 묶음·제외 페이지 | — |
+| **1-F 인덱스 확정** | 화면 수 · 배치 수 · 제외 페이지 · **IA 차이** · 예상 규모 | ◆ **사용자 확인** |
+| **1-G 전역 판독** | `prd-digester` 1회 — 문서 전역 5개 섹션 | — |
+| **2 화면 배치 루프** | 배치마다 `prd-digester` 1회 → `02_screen_s{NN}.md` + **`02_features_s{NN}.tsv`** | ◆ **첫 배치(B01) 검토** |
+| **3 렌더** | `render_digest.py --ws=` → `03_기능_전체.md` + `04_신규변경.md` | — |
+| **4 검증·리뷰** | `verify_digest.py --ws= --pages=` → `testcase-reviewer` **1회**(`references/digest-mode.md`) | Critical 시 재판독 후 재렌더 |
+| **5 보고** | 규모 · 분류 분포 · 확인 필요 항목 · IA 차이 · 산출물 목록 | — |
+
+**사이클 수는 `배치 수 + 3`** 이다(인덱스 1 + 전역 1 + 배치 M + 리뷰 1). 실측 규모
+(K8s 181페이지 · 화면 127개)로 약 48회이며, 같은 기획서의 케이스 생성 실행은 136회였다.
+
+**이 흐름에서만 다른 것**
+
+- **메뉴 트리는 스크립트가 엑셀에서 읽는다.** 모델이 트리 이미지를 판독하면 들여쓰기 깊이를
+  오독하고, **개정판의 Menu Structure 페이지는 바뀐 가지 위주로만** 그려져 전체 트리가 나오지
+  않는다. `parse_menu_ia.py` 는 **열 문자를 박지 않고**(K8s 는 LEVEL 열 4개·화면ID `H`,
+  CI/CD 는 2개·`F`) **화면 ID 접두로도 거르지 않는다**(K8s IA 에 `CICD-` 접두 7건 실재)
+- **IA 는 뼈대이지 권위가 아니다.** IA 부재는 신규의 *신호* 일 뿐 근거가 아니다 — 실측 반례가
+  양쪽에 있다(신규 화면 **19개가 IA 에 이미 실려 있었고**, 다른 제품은 **IA 가 기획서보다
+  낡았다**). 판정 근거는 주석 원문이고 IA 차이는 **대조 절로 보고만** 한다
+- **분류는 5종**(`신규`·`변경`·`삭제`·`확인 필요`·`미변경`)이다. `확인 필요` 는 종류 원문이
+  없을 때 **기획서에 없는 종류를 단정하지 않으려고** 둔 정상 산출값이고, `미변경` 은
+  **`03_기능_전체.md` 를 전체 목록으로 만드는 값**이다. 단일 출처는
+  `prd-analyzer/references/digest-mode.md` D-3
+- **`변경` 문서여도 변경분만 뽑지 않는다.** 변경분 한정은 `testcase-auto` 의 모드다
+- **두 MD 는 한 벌의 TSV 에서 렌더된다** — 같은 사실을 두 축으로 배열하는 일을 모델에게 두 번
+  시키면 어긋난다. 그래서 **기획서를 다시 읽지 않고 재렌더할 수 있고**, 고칠 것은 TSV 한 줄이며,
+  **두 MD 를 손으로 고치지 않는다**(다음 렌더에서 사라진다)
+- **리뷰는 화면마다 돌지 않고 전체를 1회 본다** — 판정 타당성과 **덜 읽은 화면**을 찾는 것이
+  목적이라 전체를 함께 봐야 한다. `verify_digest.py` 는 **낸 행만** 검사하므로
+  한 화면에 행이 하나만 남아도 `SCREEN_MISSING` 이 울리지 않는다
+- **`TROMBONE` 은 미지원** — 기획서가 6개 파일로 쪼개져 있고 IA 도 따로이며 Screen ID 체계·변경
+  표기 컨벤션을 **실측한 적이 없다.** 고르면 사유를 안내하고 멈춘다
+- 산출물은 `_workspace/VIOLA-K8s_4.0_v1/digest/` 에 쌓이고 **이미지는 같은 디렉터리의
+  `shared/`** 라, 이어서 `testcase-auto` 를 돌리면 Phase 0 (7) 에 그 경로를 넘겨 변환을 건너뛴다
 
 ---
 
@@ -460,12 +514,18 @@ python scripts/verify_sheet_rows.py --profile={viola|trombone|bootfactory} \
 - `--selftest` 는 심어 둔 위반 17종이 전부 잡히는지 확인한다. **통과만 확인하면 검사기가 죽어 있어도 모른다**
 - 내린 근거: 과거 리뷰가 실제로 잡아낸 위반(**212행 열 오배치 / 69행 미사용 컬럼 채움 / 14행 결합 규칙**)이 **전부 기계 판정 가능한 항목**이었다
 
-### 리뷰 모드 2종
+### 리뷰 모드 3종
 
 | 모드 | 시점 | 보는 것 |
 |------|------|--------|
 | **화면 리뷰** | Phase 4, 화면마다 | 위 세 경계면 + 태그·변경분·예외·판독 이슈 점검 |
 | **전체 집계 리뷰** | Phase 5, 1회 | **전역 지표만** — 분포 편차 / TC ID·`No` 연속성 / C-ID 대조 / CH-ID 충돌 / 인덱스 상태 |
+| **기획서 분석 리뷰** (`prd-digest`) | Phase 4, **1회** | **판정 타당성과 덜 읽은 화면** — 분류 근거가 주석 원문을 지지하는가 / 원본 페이지 대조로 검출 누락이 없는가 / 기능 단위의 굵기 / TSV ↔ MD 정합. 참조는 `testcase-reviewer/references/digest-mode.md` |
+
+**기획서 분석 리뷰가 보지 않는 것** — `구분` 분포·TC ID·양식 프로파일은 이 절차에 **없는
+개념**이다. `verify_digest.py` 가 이미 전수 판정한 것(분류 enum·근거 공란·화면 누락·TSV ↔ MD)
+도 다시 세지 않는다. **점검기가 낸 행만 검사한다는 것이 이 리뷰가 존재하는 이유**다 —
+덜 읽은 화면은 기계가 찾지 못한다.
 
 **분포 편차와 TC ID 연속성을 화면 리뷰에서 뺀 이유** — 화면 1개 표본은 5~20건이라 프로파일 실측 분포와 대조하면 **지배 구분 역전이 상시 Critical로 뜬다**. 그 화면에 없는 케이스를 만들라는 지적이 된다.
 
@@ -492,6 +552,12 @@ python scripts/verify_sheet_rows.py --profile={viola|trombone|bootfactory} \
 - **관리대상 컬럼은 폐지됐다** — 부재를 결함으로 지적하지 않는다.
 - **분석서의 "삭제 0건"을 색 검출 결과만으로 믿지 않는다** — DESC 전문 육안 재판독 여부를 확인한다(누락이면 Critical).
 - **작성자 자기 점검표를 인용하지 말고 독립 실측한다.**
+- **기획서 분석 리뷰 전용** — ① `확인 필요` 행이 있는 것은 **정상 산출**이다(종류를 단정하지
+  않으려고 둔 값) ② **`미변경` 이 대다수인 것도 정상**이다(개정판에서 대다수 기능은 실제로
+  그대로다). 비율을 근거로 검출 부족을 주장하는 것은 오판이고, 검출 누락은 **원본 페이지
+  대조**로 지적한다 ③ 전 행이 `미변경` 인 화면이 `04_신규변경.md` 에 없는 것은 **설계**다
+  ④ **IA 에 없는 화면이 있는 것은 결함이 아니다** ⑤ CH-ID·C-ID·「박스 ↔ 확정 항목 대조표」가
+  없는 것도 설계다 — 이 절차의 역추적 좌표는 **페이지 번호**다
 
 **권고 3단계** — Critical(즉시 수정, writer 재호출) / Major(사용자 결정 위임) / Minor(정보 제공).
 
@@ -522,7 +588,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 
 **기존 시트는 사용자가 직접 서비스 계정 이메일에 편집자 공유해야 한다.** 안 하면 403이다.
 
-### 스크립트 11종 + 검증 스크립트
+### 스크립트 14종 + 검증 스크립트
 
 원본은 `.claude/skills/*/scripts/`에 있고 루트 `scripts/`에 **심볼릭 링크**가 걸려 있다. 모든 명령은 프로젝트 루트에서 `scripts/...` 경로로 실행한다.
 
@@ -539,6 +605,9 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 | `check_image_quality.py` | `--json=` `--min-short-side=` `--min-sharpness=` `--quiet` (`불가` 있으면 exit 2) |
 | `detect_red_regions.py` | `--color=red\|blue\|both` `--no-crops` `--no-merge` `--min-area=` `--pad=` `--pages=` `--dpi=` `--output-dir=` |
 | `detect_strikethrough.py` | `--min-len=` `--max-thick=` `--band=` `--density=` `--color-only` `--json=` |
+| `parse_menu_ia.py` | `<IA.xlsx>` `--out-json=` `--out-md=` `--selftest` — **메뉴 IA 엑셀 → 메뉴 트리**. 열 문자를 박지 않고 헤더 이름으로 찾으며 LEVEL 열 수는 센다. 화면 ID 접두로 거르지 않는다. `openpyxl` 필요 |
+| `render_digest.py` | `--ws=` `--product=` `--doc=` `--selftest` — **화면별 TSV 한 벌 → MD 2개**(메뉴 구조 축 · 변경 축). 메뉴 경로·화면명은 TSV 가 아니라 여기서 조회한다 |
+| `verify_digest.py` | `--ws=` `--pages=` `--selftest` — **기획서 분석 산출물 결정적 점검**(분류 enum·근거 공란·화면 누락·TSV↔MD·페이지 커버리지). 종료 코드 0/1/2/3, **`--pages` 를 빼면 페이지 커버리지가 조용히 건너뛰어진다** |
 | `verify_unit_migration.sh` | 처리 단위 재편 **영구 회귀 가드** — 금지 패턴(챕터 잔존) + 필수 패턴(화면 단위 구조·유지 규칙) + CLI 오표기 검사 |
 
 **함정 2개가 스크립트 표기에 박혀 있다.**
@@ -546,7 +615,7 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 - `write`의 기본값은 **RAW**다(`--user-entered`로만 USER_ENTERED). 케이스 텍스트에 정상 등장하는 `-`·`1. `·`'클러스터 관리'`·`2026-01-02`가 날짜·수식으로 변환돼 깨지기 때문이다.
 - `get_metadata`는 **CLI에 없다.** 셸에서는 `metadata`, Python에서는 `SheetsClient.get_metadata()`다. 두 이름이 모두 실재해서 코드 검색으로는 "있다"고 확인되지만 CLI로 부르면 `알 수 없는 명령`으로 실패한다.
 
-의존성: `pymupdf`(PDF), `pillow`·`numpy`(이미지·색 검출·품질 진단), `google-auth`·`google-api-python-client`·`google-auth-oauthlib`(시트).
+의존성: `pymupdf`(PDF), `pillow`·`numpy`(이미지·색 검출·품질 진단), `openpyxl`(메뉴 IA 엑셀), `google-auth`·`google-api-python-client`·`google-auth-oauthlib`(시트).
 
 ---
 
@@ -557,6 +626,9 @@ OAuth 토큰은 `.credentials/oauth_token.json`에 저장·자동 갱신된다.
 1. **Phase 0 기본 정보 7개 확정** — 필수 6개 중 하나라도 미확정이면 진행하지 않는다(추정 금지)
 2. **Phase 1-C 화면 인덱스 확정** — OK할 때까지 반복
 3. **Phase 3 첫 화면 TC 검토** — 첫 화면만, 이후 자동
+
+다른 두 절차도 게이트가 **각각 3곳**이다 — 추가 작업은 권한 자료 판독 / 규모 / 첫 배치(2-1절),
+기획서 분석은 기본 정보 확정 / 화면 인덱스 확정(1-F) / 첫 배치(B01) 검토(2-2절)다.
 
 **조건부 개입** — 생성 모드 미지정 시 sheet-analyst 판정 확인, 첫 화면 패턴성 Critical 시 방향 조정, 2회 리뷰 후에도 남은 Critical 처리, 제품 유형 ↔ 시트 솔루션값 불일치.
 
