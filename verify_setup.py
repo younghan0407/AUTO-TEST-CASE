@@ -66,7 +66,7 @@ def check_symlinks():
         "figma_api.py", "pdf_to_images.py", "detect_red_regions.py",
         "detect_strikethrough.py", "check_image_quality.py", "prd_cache.py",
         "build_brief.py", "read_tc_inventory.py", "verify_sheet_rows.py",
-        "sheets_api.py", "oauth_sheet.py", "parse_menu_ia.py",
+        "sheets_api.py", "oauth_sheet.py", "parse_menu_ia.py", "render_digest.py",
     ]
     broken = []
     for name in expected:
