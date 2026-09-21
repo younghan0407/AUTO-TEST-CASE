@@ -1,0 +1,1 @@
+../.claude/skills/prd-digest/scripts/verify_digest.py

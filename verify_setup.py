@@ -67,6 +67,7 @@ def check_symlinks():
         "detect_strikethrough.py", "check_image_quality.py", "prd_cache.py",
         "build_brief.py", "read_tc_inventory.py", "verify_sheet_rows.py",
         "sheets_api.py", "oauth_sheet.py", "parse_menu_ia.py", "render_digest.py",
+        "verify_digest.py",
     ]
     broken = []
     for name in expected:
