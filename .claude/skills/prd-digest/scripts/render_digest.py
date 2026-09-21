@@ -520,8 +520,13 @@ def main(argv: list) -> int:
                        ("04_신규변경.md", render_changes_md(rows, tree, titles, hdr))):
         with open(os.path.join(ws, name), "w", encoding="utf-8") as f:
             f.write(text if text.endswith("\n") else text + "\n")
-    print("RENDER_OK 기능 %d건 · 화면 %d개 · IA %s"
-          % (len(rows), len({r["screen_id"] for r in rows if r["screen_id"] != GLOBAL_ID}),
+    # 기능 수와 전역 항목 수를 **따로** 낸다. 합쳐 내면 Phase 5 가 두 값을 나누어 보고할 수
+    # 없고(SKILL 은 두 MD 를 열어 대조하는 것을 금지한다), 합계는 `03_기능_전체.md` 의
+    # 「기능 N건」(전역 행 제외)과도 어긋난다 — 실측으로 `RENDER_OK 기능 8건` 과 `03` 의
+    # 「기능 7건」이 전역 행 1개만큼 갈렸다.
+    feat = [r for r in rows if r["screen_id"] != GLOBAL_ID]
+    print("RENDER_OK 기능 %d건 · 전역 항목 %d건 · 화면 %d개 · IA %s"
+          % (len(feat), len(rows) - len(feat), len({r["screen_id"] for r in feat}),
              "있음" if tree else "없음(폴백)"))
     return 0
 

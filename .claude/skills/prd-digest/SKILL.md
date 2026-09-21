@@ -279,11 +279,21 @@ python scripts/detect_red_regions.py <입력> --color=both --output-dir={SHARED}
 
 ```bash
 # 취소선(삭제 표기) — 이 스크립트는 PDF 를 못 읽는다. 이미지만 받는다
-python scripts/detect_strikethrough.py <이미지 디렉터리> --color-only --json={SHARED}/strikethrough.json
+python scripts/detect_strikethrough.py <이미지 디렉터리> --color-only --min-len=<실측값> --json={SHARED}/strikethrough.json
 ```
 
 인자가 색 검출과 **정반대**이므로 돌려 쓰지 않는다. PDF 입력이면 1-A 가 만든
 `{SHARED}/images` 다.
+
+**`--min-len` 을 문서의 글자 폭으로 실측해 정한다.** 한글 가로획(`ㅗ` `ㅍ` `ㅌ` `ㅡ`)은 그
+자체가 짧은 수평선이라, 임계값이 글자 폭보다 작으면 **글자획이 통째로 후보가 된다.** 폭은
+DPI·폰트 크기에 따라 달라지므로 기본값(70px)을 그대로 쓰지 않고 이 기획서의 DESC 본문
+한글 1자 폭을 재서 정한다(실측 참고: VIOLA V4.0 150 DPI 렌더는 **40~42px** → 70px 적정).
+
+**양성 대조를 먼저 한다.** 취소선이 실재하는 페이지 하나에 돌려 그것이 검출되는지 확인한
+뒤에야 나머지 페이지에 적용한다. **대조 없이 나온 「0건」은 *취소선이 없다* 가 아니라
+*임계값이 안 맞는다* 일 수 있다.** 대조 대상과 임계값은 Phase 5 보고에 남긴다 — 어느 근거로
+세운 값인지가 없으면 뒤에서 0건을 해석할 수 없다.
 
 - **검출은 전 페이지에 1회만 실행한다.** 오케스트레이터가 화면 인덱스의 페이지 범위로
   결과를 잘라 각 화면 에이전트에게 넘긴다 — 화면마다 다시 돌리지 않는다
@@ -562,7 +572,7 @@ python scripts/render_digest.py --ws={WS} --product=<제품 유형> --doc=<기�
 
 | 종료 코드 | 뜻 | 처리 |
 |----------|-----|------|
-| `0` | `RENDER_OK 기능 N건 · 화면 M개 · IA 있음/없음` | 4 로 간다. 이 줄의 수를 Phase 5 보고에 쓴다 |
+| `0` | `RENDER_OK 기능 N건 · 전역 항목 G건 · 화면 M개 · IA 있음/없음` | 4 로 간다. 이 줄의 수를 Phase 5 보고에 그대로 쓴다 — **`기능 N` 은 전역 항목을 뺀 수**이고 `03_기능_전체.md` 의 「기능 N건」과 같은 값이다 |
 | `1` | **`--ws` 누락** — 사용법만 출력한다 | 실제 경로를 넣어 다시 돌린다 |
 | `2` | **`TSV_COLS`**(셀에 탭·개행이 들어가 열 수가 어긋남) 또는 **`RENDER_NO_INPUT`**(`{WS}` 에 `02_features_s*.tsv` 가 없음) | 아래 |
 
@@ -703,7 +713,7 @@ Critical 코드별 처리:
 오케스트레이터 컨텍스트가 평균 40만 토큰까지 자라 전체 비용의 25.5% 를 혼자 썼다).
 
 **렌더 결과와 판독 전문을 `Read` 로 열지 않는다.** 확인에 필요한 값은 이미 세 곳에서 온다 —
-`render_digest.py` 의 **`RENDER_OK` 줄**(기능 수 · 화면 수 · IA 유무) · `verify_digest.py` 의
+`render_digest.py` 의 **`RENDER_OK` 줄**(기능 수 · 전역 항목 수 · 화면 수 · IA 유무) · `verify_digest.py` 의
 **위반 목록과 Critical/Major 건수** · 에이전트 리턴의 **분류별 건수**. 행 수·파일 크기가
 필요하면 `wc -l` · `ls -l` 로 본다. **`verify_digest.py` 는 행 수도 파일 크기도 분류별 건수도
 출력하지 않는다** — 없는 출력을 근거로 삼으면 확인했다고 적고 확인하지 않은 것이 된다.

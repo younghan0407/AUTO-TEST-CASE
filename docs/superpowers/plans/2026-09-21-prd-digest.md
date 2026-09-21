@@ -68,7 +68,7 @@
 | **신설** `.claude/skills/prd-digest/SKILL.md` | 오케스트레이터 (`0-0` 절 포함) |
 | `CLAUDE.md` | 트리거 분기 · 절차 등재 · `openpyxl` 의존성 · 변경 이력 |
 | `verify_setup.py` | 새 스킬·에이전트·링크 3개 검사 |
-| `scripts/verify_unit_migration.sh` | 회귀 가드 — 이 절차 절에 **11개**(구현 중 5개 추가) + 가드 자체 점검 1개 |
+| `scripts/verify_unit_migration.sh` | 회귀 가드 — 이 절차 절에 **12개**(구현 중 6개 추가) + 가드 자체 점검 1개 |
 | 사용자 문서 7종 | 세 번째 절차 등재 |
 
 ### 공용 계약 — 두 스크립트가 같은 것을 다르게 적지 않도록 여기 한 번만 정의한다
@@ -1644,7 +1644,7 @@ Expected: 마지막 `grep` 은 **오케스트레이터 SKILL 3종의 `0-0` 절�
 | `prd_cache.py --selftest` | `selftest PASS — 37건 통과` |
 | `verify_sheet_rows.py --selftest` | 위반 17종 검출 + 오탐 0건 |
 | `read_tc_inventory.py --selftest` | `PASS` |
-| `verify_unit_migration.sh` | `PASS` (이 절차 절 **11개** + 가드 자체 점검 1개) |
+| `verify_unit_migration.sh` | `PASS` (이 절차 절 **12개** + 가드 자체 점검 1개) |
 | `build_brief.py --coverage-check` | `✅ 전 절 배정 완료 · 유령 배정 0건` |
 | `verify_setup.py` | 링크 14개 · 스킬 7개 · 에이전트 6개 |
 | `_workspace` 전수 | 오케스트레이터 SKILL 3종의 `0-0` 절만 |
