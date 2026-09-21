@@ -289,6 +289,13 @@ absent "오케스트레이터의 산출물 경로 하드코딩" \
 present "재실행 시 shared 보존" 'shared/.{0,12}(제자리|이동하지)' \
         .claude/skills/testcase-auto/SKILL.md
 
+echo "── 기획서 분석 절차 (2026-09-21) ──────────────────────────"
+present "분류 5종에 확인 필요 포함" '확인 필요' \
+        .claude/skills/prd-analyzer/references/digest-mode.md \
+        .claude/agents/prd-digester.md
+present "리뷰 역방향 오판 금지" '역방향 오판|오판 금지' \
+        .claude/skills/testcase-reviewer/references/digest-mode.md
+
 echo
 if [ "$fail" -eq 0 ]; then
   echo "PASS — 처리 단위 재편 검사 통과"
