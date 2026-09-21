@@ -53,6 +53,7 @@ PDF를 요구하거나 되돌려 받으려 하지 않는다. 이미지가 곧 �
 | 입력이 **이미지** 파일·디렉터리 | `references/image-input.md` (IMG-1 ~ IMG-5) |
 | 입력이 **Figma URL** | `references/figma.md` |
 | 기획서 유형이 **`변경`** 또는 이 화면이 **변경 정책**(정책 예외) | `references/change-mode.md` (PDF-3.5 / IMG-4) |
+| 작업 유형이 **기획서 분석(`prd-digest`)** | `references/digest-mode.md` (D-1 ~ D-7) + 기획서 유형이 **`변경`** 이면 `references/change-mode.md` 도 함께 |
 
 - **조건에 맞지 않는 파일은 열지 않는다.** PDF + `신규` 실행이면 본문만으로 완결된다
 - 참조 문서는 **절 번호를 원본 그대로** 유지한다 — 다른 문서의 `prd-analyzer` PDF-3.5 같은 상호 참조가 그대로 유효하다

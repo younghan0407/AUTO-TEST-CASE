@@ -34,13 +34,16 @@ NOWS=(.claude/agents/prd-analyst.md
       .claude/agents/testcase-reviewer.md
       .claude/agents/sheet-analyst.md
       .claude/agents/tc-augmenter.md
+      .claude/agents/prd-digester.md
       .claude/skills/prd-analyzer/SKILL.md
       .claude/skills/prd-analyzer/references/image-input.md
       .claude/skills/prd-analyzer/references/change-mode.md
       .claude/skills/prd-analyzer/references/figma.md
+      .claude/skills/prd-analyzer/references/digest-mode.md
       .claude/skills/testcase-generator/SKILL.md
       .claude/skills/testcase-reviewer/SKILL.md
       .claude/skills/testcase-reviewer/references/augment-mode.md
+      .claude/skills/testcase-reviewer/references/digest-mode.md
       .claude/formats/common.md)
 CORE=("${SKILLS[@]}" "${AGENTS[@]}" "${FORMATS[@]}")
 CORE=("${CORE[@]}" "${AUGMENT[@]}")
