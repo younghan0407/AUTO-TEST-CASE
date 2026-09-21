@@ -362,20 +362,36 @@ present "TROMBONE 미지원"          'TROMBONE.{0,3}을 고르면 진행하지 
 # `기획서 분석 결과` 는 입력 산출물을 가리키는 명사구이지 사용자가 타이핑하는 트리거가
 # 아니므로(`testcase-generator`) 지우고 나서 센다 — 안 그러면 이 가드가 영구 FAIL 이거나,
 # 그걸 피하려다 패턴이 느슨해져 진짜 중복을 놓친다.
+# frontmatter 의 `description` 필드 **전문**을 한 줄로 낸다. 첫 줄만 읽으면 YAML 접힌
+# 스칼라(`description: >` 뒤 들여쓴 여러 줄)로 쓴 주장이 통째로 새어 나간다.
+desc_field() { # $1=SKILL.md
+  awk '
+    NR == 1 && $0 == "---" { infm = 1; next }
+    infm && $0 == "---"    { exit }
+    !infm                  { exit }
+    /^description:/ { ind = 1; sub(/^description:[ \t]*/, ""); print; next }
+    ind && /^[A-Za-z_][A-Za-z0-9_-]*:/ { ind = 0 }
+    ind { print }
+  ' "$1" | tr '\n' ' '
+}
+
 trigger_owner() {
-  local f n=0 hits=""
+  local f owner=".claude/skills/prd-digest/SKILL.md" n=0 hits=""
   for f in .claude/skills/*/SKILL.md; do
     [ -e "$f" ] || continue
-    if sed -n 's/^description: *//p' "$f" | sed 's/기획서 분석 결과//g' | grep -q '기획서 분석'; then
-      n=$((n + 1)); hits="$hits $f"
+    if desc_field "$f" | sed 's/기획서 분석 결과//g' | grep -q '기획서 분석'; then
+      n=$((n + 1)); hits="${hits:+$hits }$f"
     fi
   done
-  if [ "$n" -eq 1 ]; then
-    printf 'ok    기획서 분석 트리거 문구 독점 (스킬 1개)
-'
+  # **개수가 아니라 소유자를 본다.** 개수만 보면 문구를 `prd-digest` 에서 떼어 다른 스킬에
+  # 옮겨 붙여도 1개라서 `ok` 가 찍히는데, 그것이 바로 이 가드가 막으려던 실패다
+  # (`기획서 분석해줘` 가 Phase 0 도 작업 디렉터리도 메뉴 IA 단계도 없는 도구 스킬로 간다).
+  # 옆의 `기획서 분석 트리거 분기` 가드도 `CLAUDE.md` 안의 `prd-digest` 만 보므로 함께 통과한다.
+  if [ "$hits" = "$owner" ]; then
+    printf 'ok    기획서 분석 트리거 문구 독점 (%s)\n' "$owner"
   else
-    printf 'FAIL  기획서 분석 트리거 문구를 주장하는 스킬이 %d개 — 정확히 1개여야 한다:%s
-' "$n" "$hits"
+    printf 'FAIL  기획서 분석 트리거 문구의 소유자는 %s 하나여야 한다 — 실제 주장 %d개: %s\n' \
+           "$owner" "$n" "${hits:-없음}"
     fail=1
   fi
 }
