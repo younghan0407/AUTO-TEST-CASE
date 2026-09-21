@@ -29,6 +29,30 @@ description: 기획서(PRD)를 분석하여 팀 양식에 맞는 테스트 케�
 
 ### Phase 0: 기본 정보 수집 + 컨텍스트 확인
 
+#### 0-0. 작업 디렉터리 — 이 절이 경로의 단일 출처다
+
+```
+_workspace/
+├── VIOLA-K8s_4.0_v1/          ← {디렉터리명}. 0-2 (6)에서 확정한다
+│   ├── shared/                ← {SHARED} : 이미지 · 색 검출 · 취소선 · 판독 품질 + manifest.json
+│   ├── digest/                ← 기획서 분석 (prd-digest) — 예정 (별도 스펙)
+│   └── testcase/              ← {WS} : 이 절차의 산출물
+└── augment/                   ← testcase-augment (제품·버전 폴더 밖)
+```
+
+- **`{WS}` = `_workspace/{디렉터리명}/testcase`**, **`{SHARED}` = `_workspace/{디렉터리명}/shared`**
+- `{SHARED}` 의 기본값은 위 경로이고, **Phase 0 (7) 에서 이미 변환된 이미지 경로를 받으면
+  그 경로가 `{SHARED}` 가 된다.** 값을 받은 뒤로는 1-A 변환·1-A-2 판독 품질·1-A-3 변경
+  표시 검출·manifest 가 **전부 그 한 트리**를 가리킨다
+- **다른 절과 에이전트 프롬프트에서는 `_workspace` 를 쓰지 않는다.** 이 절에서 값을
+  정하고, 이후로는 `{WS}`·`{SHARED}` 로만 지칭한다
+- **에이전트에게는 치환된 실제 경로를 적어 넘긴다.** `{WS}` 를 그대로 프롬프트에
+  넣지 않는다 — 에이전트가 치환하다 틀리면 엉뚱한 곳에 쓰고도 성공한 것처럼 보인다
+- 스크립트를 호출할 때도 **항상 `--output-dir` / `--json` 에 실제 경로를 명시**한다.
+  스크립트 기본값(구 평면 배치 `…/pdf_images/<pdf_basename>` 등)에 기대지 않는다 —
+  이 재편이 없앤 자리를 가리킨다. 예외는 **파일을 쓰지 않는 훑기 호출**(`--no-crops`,
+  `--json` 없는 `--color-only`) 뿐이다
+
 #### 0-1. 환경변수 검증
 
 - `FIGMA_ACCESS_TOKEN` 이 설정됐는가 (Figma 입력일 때만 필수)
@@ -37,7 +61,8 @@ description: 기획서(PRD)를 분석하여 팀 양식에 맞는 테스트 케�
 
 #### 0-2. 기본 정보 수집 — **필수 게이트**
 
-**분석·생성에 착수하기 전에 아래 5개 항목을 사용자에게 물어 확정한다.**
+**분석·생성에 착수하기 전에 아래 7개 항목을 사용자에게 물어 확정한다.** (1)~(6)은 필수,
+(7)은 선택이다.
 사용자가 첫 요청에 이미 적어 준 항목은 다시 묻지 말고 **확인만** 한다.
 `AskUserQuestion` 으로 선택지를 제시하면 왕복이 줄어든다.
 
@@ -122,9 +147,33 @@ Figma URL / PDF 파일 경로 / **이미지(PNG 등) 파일·디렉터리 경로
   `common.md` 권위 규칙에 따라 **작성 중단 + 사용자 확인**
 - 유사한 이름의 탭이 이미 있으면(구분자만 다른 경우 등) 보고하고 확인받는다
 
+##### (6) 작업 디렉터리명 — 필수
+
+형식은 **`{제품}_{제품버전}_{문서회차}`** (예 `VIOLA-K8s_4.0_v1`). 공백·슬래시는 `-` 로 바꾼다.
+
+**파일명에서 자동으로 만들지 않는다.** 두 축이 다르기 때문이다 —
+`[4.0] VIOLA_화면기획서_v1_260728.pdf` 는 제품 버전이 `4.0`, Document History 회차가
+`v1` 이다. 회차가 없으면 **같은 제품 버전 안에서 판본이 겹치고**(CI/CD 기획서는 실제로
+`v1` → `v2` 로 갱신됐는데 둘 다 `4.0` 이다), 제품 버전이 없으면 다음 릴리스의 `v1` 과
+충돌한다. 셋을 다 써야 유일해진다.
+
+**0-4 확정값 표에 넣어 되보여 준다.**
+
+##### (7) 이미 변환된 이미지 경로 — 선택
+
+기획서 분석(`prd-digest`)을 먼저 돌렸거나 전에 변환해 둔 이미지가 있으면 그
+`shared` 디렉터리 경로를 받는다. 값이 있으면 **1-A 변환을 건너뛴다**(검사는 반드시 한다).
+
+값이 주어지면 **이후 `{SHARED}` 는 그 경로다.** 변환·검출·manifest 가 전부 한 트리에
+모이도록 여기서 한 번만 정한다 — 받은 경로와 기본 경로가 갈리면 manifest 가 둘 생기고
+품질 진단·검출 결과가 이미지 없는 트리에 떨어진다.
+
+생략하면 `{SHARED}` 에 새로 변환한다. 같은 기획서를 다시 다루면
+`{SHARED}` 에 이미 있으므로 **대개 생략해도 재사용된다.**
+
 #### 0-3. 그 외 확인 항목
 
-기본 정보 5개 외에 아래를 확인한다. **기본값이 있는 항목은 묻지 않고 적용 후 보고**해도 된다.
+기본 정보 7개 외에 아래를 확인한다. **기본값이 있는 항목은 묻지 않고 적용 후 보고**해도 된다.
 
 | 항목 | 기본값 | 언제 묻는가 |
 |------|-------|------------|
@@ -152,16 +201,28 @@ Figma URL / PDF 파일 경로 / **이미지(PNG 등) 파일·디렉터리 경로
 | 기획서 | PDF/VIOLA_V4.0/03_파드.pdf |
 | 대상 시트 | https://docs.google.com/spreadsheets/d/... |
 | 탭 | 신규 생성 — "03_파드_변경분" |
+| 작업 디렉터리명 | VIOLA-K8s_4.0_v1 |
+| 이미 변환된 이미지 | 없음 (새로 변환) |
 | 생성 모드 | atomic |
 | 취소선 | 삭제 표기로 처리 |
 ```
 
 #### 0-5. 기존 산출물 확인 → 실행 모드 결정
 
-- `_workspace/` 가 없음 → **초기 실행** (Phase 1부터 전체 진행)
-- `_workspace/` 가 있고 사용자가 "다시" / "재실행" 요청 → 기존을 `_workspace_prev_{설명}_{날짜}/` 로 이동, **새 실행**
-- `_workspace/` 가 있고 사용자가 "특정 화면만 보완" 요청 → **부분 재실행** (인덱스에서 그 순번을 찾아 해당 화면만 재처리. 인덱스의 상태·시트 행이 남아 있어 범위가 정확히 특정된다)
-- `_workspace/` 가 있고 변경 없이 다음 단계만 → **이어 실행** (완료 안 된 단계부터)
+| 상황 | 처리 |
+|------|------|
+| `{WS}` 가 없음 | **초기 실행** (Phase 1부터) |
+| 있고 "다시"/"재실행" 요청 | `{WS}_prev_{설명}_{날짜}/`(= `…/{디렉터리명}/testcase_prev_{설명}_{날짜}/`) 로 이동. **`shared/` 는 제자리에 남긴다** |
+| 있고 "특정 화면만 보완" 요청 | **부분 재실행** — 인덱스에서 그 순번을 찾아 해당 화면만 재처리 (인덱스의 상태·시트 행이 남아 있어 범위가 정확히 특정된다) |
+| 있고 변경 없이 다음 단계만 | **이어 실행** — 완료 안 된 단계부터 |
+
+**`shared/` 를 남기는 것이 핵심이다.** 예전에는 작업 루트를 통째로 옮겨
+이미지가 함께 사라졌고, 그래서 같은 PDF의 이미지가 **780MB 중복**됐다
+(실측: 작업 루트 484MB + 백업본 296MB). 이미지는 판본이 같으면 같은 것이므로
+이동 대상이 아니다.
+
+**제품·버전이 다르면 애초에 다른 디렉터리이므로 이동 자체가 대부분 사라진다** —
+이동은 이제 *같은 제품의 같은 판본을 처음부터 다시 할 때* 만 일어난다.
 
 #### 0-6. 시트 권한 확인 안내
 
@@ -180,13 +241,57 @@ Figma URL / PDF 파일 경로 / **이미지(PNG 등) 파일·디렉터리 경로
 
 **PDF 입력인 경우 — 이미지 변환:**
 
+**변환 전에 캐시를 검사한다.**
+
+Phase 0 (7)에서 이미 변환된 `shared` 경로를 받았으면 **`{SHARED}` 가 이미 그 경로다**
+(0-0). 이 절 아래의 `{SHARED}` 를 **전부** 그 값으로 치환하고, `--shared` 에만 따로
+끼워 넣지 않는다 — 한쪽만 바꾸면 검사는 받은 트리에서 하고 변환은 기본 트리에 쏟아져
+manifest 가 둘 생긴다.
+
+```bash
+python scripts/prd_cache.py check --pdf=<PDF> --shared={SHARED} --require=full,desc
+```
+
+| 결과 | 처리 |
+|------|------|
+| `CACHE_OK` (0) | **변환을 건너뛰고 1-A-2 로 간다.** 단 아래 「조각 파일 목록 전달」은 그대로 한다 |
+| `CACHE_MISMATCH` (2) | **중단.** 다른 판본으로 만든 이미지다 — 사용자에게 알리고 판단을 받는다 |
+| `CACHE_NO_MANIFEST` (3) | 매니페스트가 없거나 **variant 를 하나도 기록하지 않았다.** 페이지 수만 대조하고 **사용자 확인** 후 진행. 진행하면 그 사실을 분석서에 남긴다 |
+| `CACHE_PARTIAL` (4) | 매니페스트에 없거나 파일 수가 어긋나는 variant 만 변환하고 manifest 를 다시 쓴다 |
+
+**`--require=` 를 빼면 안 된다.** 이 인자가 없으면 `check` 는 **매니페스트가 이미 아는
+variant 만** 검사하므로, `full` 만 등록된 트리가 `desc` 없이도 `CACHE_OK` 를 받는다.
+그러면 변환을 건너뛴 채 DESC 조각이 없는 상태로 진행해 분석 담당이 **150 DPI 전체
+페이지만 읽는다** — 한글 본문 1자가 9.9px로 도착하는 그 상태다. 오류는 나지 않고
+**판독 품질만 조용히 떨어진다.** 이름은 아래 `write` 의 `--variant=name=` 과 같다.
+
+**받은 경로라도 `check` 는 반드시 한다** — 경로가 있다는 것과 그 이미지가 이 판본의
+것이라는 것은 다르다. Phase 0 (7) 로 받은 **밖에서 만들어진 트리**가 특히 그렇다:
+일부만 채워져 있어도 경로는 멀쩡해 보인다.
+
 ```bash
 # 전체 페이지 150 DPI
-python scripts/pdf_to_images.py <pdf_path> --dpi=150 --output-dir=_workspace/pdf_images/<name>
+python scripts/pdf_to_images.py <pdf_path> --dpi=150 --output-dir={SHARED}/images
 
 # Description 패널 크롭 200 DPI + 판독용 분할 (--tile=auto 필수)
-python scripts/pdf_to_images.py <pdf_path> --crop-desc --dpi=200 --tile=auto --output-dir=_workspace/pdf_images/<name>_desc
+python scripts/pdf_to_images.py <pdf_path> --crop-desc --dpi=200 --tile=auto --output-dir={SHARED}/images_desc
 ```
+
+변환을 마쳤으면 **전량 성공한 뒤에만** manifest 를 쓴다 — 상세는
+`prd-analyzer` SKILL 「PDF-2.5. 이미지 캐시」.
+
+```bash
+python scripts/prd_cache.py write --pdf=<PDF> --shared={SHARED} \
+    --variant=name=full,dir=images,dpi=150,tile=none \
+    --variant=name=desc,dir=images_desc,dpi=200,tile=auto \
+    --page-count=<페이지 수>
+```
+
+- `--variant=` 의 `dir=` 은 위 `--output-dir=` 의 마지막 칸과 **글자까지 같아야 한다.**
+  등록하지 않은 디렉터리는 무결성 검사를 받지 않아 빠진 페이지가 조용히 통과한다
+- **전체 페이지(150 DPI)에는 분할 variant 를 등록하지 않는다.** 그 변환은 UI 배치
+  파악용이라 분할하지 않기로 돼 있다(`prd-analyzer` PDF-2) — 만들지 않는 산출물을
+  매니페스트에 올리면 매번 `CACHE_PARTIAL` 이 뜬다
 
 **`--tile=auto` 를 빼면 안 된다.** 이미지는 모델 전달 시 긴 변 1568px로 축소되므로
 **올린 DPI가 상한에서 버려진다** — 실측으로 DESC 크롭 200 DPI는 한글 본문 1자가 **9.9px** 로
@@ -195,8 +300,15 @@ python scripts/pdf_to_images.py <pdf_path> --crop-desc --dpi=200 --tile=auto --o
 올리고 **토큰도 페이지당 ~11.5K → ~6.5K 로 줄인다.**
 
 - 변환 직후 stderr의 **유효배율·한글 예상 px** 을 확인하고, 경고가 있으면 사용자에게 알린다
+
+**조각 파일 목록 전달 — 변환했든 캐시를 재사용했든 똑같이 한다.**
+
 - 조각 파일명은 `page_NNN_desc_t1.png` ~ `_tN.png` (위→아래 순서, 경계 겹침 포함).
   **화면 에이전트 프롬프트에 조각 파일 목록을 순서대로 넘긴다**
+- **`CACHE_OK` 로 변환을 건너뛴 경우에도 건너뛰지 않는다.** 조각은 이미
+  `{SHARED}/images_desc` 에 있으므로 `ls -1 {SHARED}/images_desc` 로 목록을 만들어 넘긴다.
+  이 전달이 빠지면 분석 담당이 DESC 조각을 받지 못해 **전체 페이지(150 DPI)만 읽는다** —
+  한글 본문 1자가 9.9px로 도착하는 그 상태이고, 캐시가 맞을수록 이 경로가 기본이 된다
 
 **이미지 입력인 경우 — 변환 없음, 바로 분석 준비:**
 
@@ -208,14 +320,19 @@ ls -1 <이미지 디렉터리>
 ```
 
 - 파일명 정렬이 페이지 순서와 다르면(`1.png, 10.png, 2.png`) **사용자에게 순서를 확인한다.** 추정 금지
-- 흩어진 이미지는 `_workspace/prd_images/<name>/`에 정렬 가능한 이름으로 모은다 (**원본은 수정·삭제하지 않는다**)
+- 흩어진 이미지는 `{SHARED}/prd_images/<name>/`에 정렬 가능한 이름으로 모은다 (**원본은 수정·삭제하지 않는다**)
 - Description 크롭은 만들지 않는다 (`--crop-desc`는 PDF 전용). 원본 이미지 한 장에서 Description을 먼저 판독한 뒤 UI를 본다
 
 #### 1-A-2. 이미지 판독 품질 게이트 (이미지 입력 시 필수)
 
 ```bash
-python scripts/check_image_quality.py <이미지 디렉터리|파일> --json=_workspace/00_image_quality.json
+python scripts/check_image_quality.py <이미지 디렉터리|파일> --json={SHARED}/00_image_quality.json
 ```
+
+입력 인자는 입력 유형에 따라 갈린다 — **PDF 입력이면 `{SHARED}/images`**(1-A 가 만든 것),
+**이미지 입력이면 사용자가 준 원본 디렉터리**다(`{SHARED}` 로 옮기지 않는다).
+출력만 `{SHARED}` 로 고정된다. 이미지가 흩어져 있어 1-A에서 `{SHARED}/prd_images/<name>/`
+로 모은 경우에는 **모은 그 디렉터리**가 입력이다 — 복사해 모은 것이라 원본은 그대로 남는다.
 
 `불가` 판정이 있으면 종료 코드 `2`다. 판정별 처리:
 
@@ -243,27 +360,71 @@ PDF 입력에서도 변환 결과가 흐리거나 텍스트가 작으면 이 게
 **먼저 이 기획서가 어떤 색을 쓰는지 실측한다.** 표시색은 기획서마다 다르다 — 빨강 단독인 판본도 있고
 **빨강+파랑을 함께 쓰는 판본**도 있다. 한 색만 검출하면 나머지 색의 변경분이 그대로 누락된다.
 
+**이미지 입력이면 입력 인자는 사용자가 준 원본 디렉터리**다(`{SHARED}` 로 옮기지 않는다).
+출력만 `{SHARED}` 로 고정된다. 이미지가 흩어져 있어 1-A에서 `{SHARED}/prd_images/<name>/`
+로 모은 경우에는 **모은 그 디렉터리**가 입력이다 — 복사해 모은 것이라 원본은 그대로 남는다.
+
+**PDF 입력에서는 스크립트마다 인자가 다르다. 아래 각 절이 정하는 값을 그대로 쓴다** —
+`{SHARED}/images` 를 두 스크립트에 똑같이 넘기면 안 된다(1-A-2 의 규칙을 여기 그대로
+가져오지 말 것).
+
+**색 검출은 PDF를 직접 받는다.** `detect_red_regions.py` 는 PDF를 직접 열어 `--dpi` 로
+스스로 렌더하므로, PDF 입력에서는 `{SHARED}/images` 가 아니라 **`<pdf_path>` 원본을 그대로
+넘긴다**(아래 첫 명령). 이미 렌더된 이미지 디렉터리를 주면 스크립트가 DPI 옵션을 무시하고
+원본 해상도를 쓰므로 **검출 조건이 달라진다.** 따라서 아래 `<입력>` 은 PDF 입력이면 PDF
+경로이고, `<이미지 디렉터리|파일>` 은 이미지 입력 전용이다.
+
 ```bash
 # 0단계 — 쓰인 색 확인 (크롭 없이 후보 수만 비교)
 python scripts/detect_red_regions.py <입력> --color=both --no-crops
 ```
 
+`--no-crops` 는 크롭도 메타 파일도 쓰지 않으므로 `--output-dir` 을 주지 않는다.
+**파일을 쓰는 아래 호출에는 반드시 준다** — 생략하면 스크립트 기본값
+(구 평면 배치 `…/red_regions/<pdf_basename>`)으로 떨어져 `{SHARED}` 밖에 남는다.
+
 ```bash
 # PDF 입력 — 전 페이지 1회 실행
-python scripts/detect_red_regions.py <pdf_path> --output-dir=_workspace/red_regions
+python scripts/detect_red_regions.py <pdf_path> --output-dir={SHARED}/red_regions
 
 # 이미지 입력 (디렉터리·단일 파일 모두 가능. DPI 옵션 무시, 원본 해상도 사용)
-python scripts/detect_red_regions.py <이미지 디렉터리|파일> --output-dir=_workspace/red_regions
+python scripts/detect_red_regions.py <이미지 디렉터리|파일> --output-dir={SHARED}/red_regions
 
 # 빨강 + 파랑을 함께 쓰는 기획서
-python scripts/detect_red_regions.py <입력> --color=both --output-dir=_workspace/red_regions
+python scripts/detect_red_regions.py <입력> --color=both --output-dir={SHARED}/red_regions
 ```
 
 - 출력은 **후보**다. 오탐(필수 `*`, 원형 번호 배지, 에러 아이콘, 실패 badge, 삭제 버튼, 차트 색, **페이지 외곽 아트보드 프레임**, 파랑의 경우 링크·기본 버튼·선택 탭·간지 배경)이 섞여 있으므로 각 화면의 `prd-analyst`가 육안으로 확정한다.
 - **검출은 전 페이지에 1회만 실행한다.** 오케스트레이터가 화면 인덱스의 페이지 범위로 결과를 잘라 각 화면 에이전트에게 넘긴다 — 화면마다 스크립트를 다시 돌리지 않는다.
 - 검출 결과 경로(해당 화면 페이지 분) **+ 실측한 표시색 + 확정된 오탐 목록**을 화면 에이전트 프롬프트에 함께 전달한다.
 - **색으로 변경 종류·회차를 단정하지 않도록 지시한다.** 종류·회차는 주석 텍스트(`v2수정`/`v2추가`/`v2삭제` + 날짜)가 권위다. 색↔날짜 대응은 페이지마다 어긋날 수 있다.
-- 기획서 유형이 `신규` 이고 **예외 항목도 없으면** 실행하지 않는다.
+
+**취소선(삭제 표기) 검출 — 색 검출과 같은 조건에서 함께 돌린다.**
+
+**이 스크립트는 PDF를 못 읽는다 — 이미지만 받는다.** 색 검출과 정반대이므로 인자를
+돌려 쓰면 안 된다. **PDF 입력이면 1-A 가 만든 `{SHARED}/images`**, 이미지 입력이면
+위와 같이 사용자가 준(또는 모아 둔) 디렉터리다.
+
+```bash
+python scripts/detect_strikethrough.py <이미지 디렉터리> --color-only --json={SHARED}/strikethrough.json
+```
+
+- **이 호출을 빼면 안 된다.** `detect_red_regions.py` 는 **색 영역만** 찾으므로 선 몇
+  픽셀인 취소선을 못 잡고, 취소선은 PDF 텍스트 레이어에도 서식 정보가 없다. 즉
+  **삭제 변경분은 색 검출 후보 목록에 아예 나타나지 않는다.** 분석 담당이
+  `{SHARED}/strikethrough.json` 을 열었다가 파일이 없어 「취소선 0건」으로 결론내면
+  그 문서의 삭제 변경분이 통째로 사라진다
+- `--min-len` 은 **문서 글자 폭을 실측해** 정한다(기본 70px = VIOLA 150 DPI 렌더의
+  한글 1자 40~42px 기준). 임계값이 글자 폭보다 작으면 한글 가로획이 통째로 후보가 된다
+- 출력은 **후보**다. 그리고 **「0건」은 *취소선 없음* 이 아니다** — 양성 대조를
+  통과해도 부분 취소선(단어·글자 몇 개)은 임계값 아래로 떨어진다(실측: 610px 런으로
+  세운 `--min-len=110` 이 같은 문서의 2글자 ~80px 취소선을 놓쳤다). **검출 결과와
+  함께 「DESC 전문 육안 재판독」 의무를 화면 에이전트 프롬프트에 적어 넘긴다**
+- 결과 경로도 색 검출과 같이 **해당 화면 페이지 분**을 잘라 넘긴다
+
+<!-- 아래 두 줄은 이 절의 두 검출(색·취소선) 모두에 걸린다 -->
+
+- 기획서 유형이 `신규` 이고 **예외 항목도 없으면** 이 절의 검출을 실행하지 않는다.
 - 기획서 유형이 `신규` 인데 **예외 항목(변경 정책 화면)이 있으면 그 화면 페이지에만** 실행한다.
 
 #### 1-B. 화면 인덱스 사전 스캔
@@ -277,8 +438,8 @@ python scripts/detect_red_regions.py <입력> --color=both --output-dir=_workspa
 
 | 산출물 | 내용 |
 |--------|------|
-| `_workspace/00_screen_index.md` | 처리 단위 목록 + 진행 상태 |
-| `_workspace/00_cid_register.md` | 공통 DESC 후보 + C-ID 선배정 |
+| `{WS}/00_screen_index.md` | 처리 단위 목록 + 진행 상태 |
+| `{WS}/00_cid_register.md` | 공통 DESC 후보 + C-ID 선배정 |
 | (보고) 화면 식별자 출처 필드명 | `Screen ID` / `Page ID` / 기타 — **제품 프로파일의 화면 ID 체계와 대조**하고 어긋나면 보고 |
 
 **화면 식별자 추출은 `prd-analyzer` 의 「화면 식별자 추출 규칙」을 따른다** (프로파일의 우선순위대로
@@ -331,7 +492,7 @@ python scripts/detect_red_regions.py <입력> --color=both --output-dir=_workspa
 - **직전 화면에 병합하지 않는다** — 여러 화면에 걸치는 공통 정책을 한 화면에만 귀속시키면
   나머지 화면에서 근거가 사라진다
 
-**C-ID 레지스터 형식** (`_workspace/00_cid_register.md`):
+**C-ID 레지스터 형식** (`{WS}/00_cid_register.md`):
 
 ```
 # 공통 DESC C-ID 레지스터
@@ -417,7 +578,7 @@ OK면 그대로 진행합니다.
 
 - 사용자 OK → 확정된 인덱스로 루프 진입
 - 사용자 수정 → 인덱스 수정 후 다시 보여주고 재확인 (OK까지 반복)
-- 확정된 인덱스는 `_workspace/00_screen_index.md` 에 저장
+- 확정된 인덱스는 `{WS}/00_screen_index.md` 에 저장
 - **제외한 페이지와 판독 불가 항목을 반드시 함께 보여준다** — 조용히 빠진 페이지가 누락의 원천이다
 - 화면 수가 많으면(예: 50개 초과) 사이클 수를 알리고 **범위 축소 여부를 확인한다**
 
@@ -430,7 +591,7 @@ OK면 그대로 진행합니다.
 | **A. 드리프트 검증** (기본) | `.claude/formats/` 에 사양이 있음 | 사양 로드 + **대상 시트 헤더 1행 + 마지막 20~50행** 실측 |
 | **B. 사양 갱신** | 사양이 없거나 사용자가 `"양식 사양 갱신"` 을 요청 | 참고 시트 **전수 스캔** → 사양 파일 갱신 |
 
-산출물은 두 모드 모두 `_workspace/02_sheet_format.md` 이며, 최상단에 **어느 모드였는지 명시**한다.
+산출물은 두 모드 모두 `{WS}/02_sheet_format.md` 이며, 최상단에 **어느 모드였는지 명시**한다.
 
 **모드 A에서 확인하는 것:**
 
@@ -460,14 +621,14 @@ OK면 그대로 진행합니다.
 
 ```bash
 # Phase 0 확정값 표를 파일로 먼저 저장 (0-4에서 사용자에게 보여준 그 표)
-#   → _workspace/00_phase0.md
+#   → {WS}/00_phase0.md
 
 for R in analyst writer reviewer; do
   python scripts/build_brief.py --role=$R \
       --profile={viola|trombone|bootfactory} --doc-type={신규|변경} \
-      --phase0=_workspace/00_phase0.md \
-      --index=_workspace/00_screen_index.md \
-      --out=_workspace/00_brief_$R.md
+      --phase0={WS}/00_phase0.md \
+      --index={WS}/00_screen_index.md \
+      --out={WS}/00_brief_$R.md
 done
 # 문서 기본이 `신규` 인데 변경 정책 예외 화면이 있으면 --has-change-exception 를 함께 준다
 ```
@@ -517,10 +678,10 @@ for 배치 in 배치 목록 (B01, B02, … 순):          # 1-B-1. 대개 화면
 - 입력: **화면 ID 원문 · 페이지 범위 · CH-ID 접두 · 소속 간지 · 그 화면의 정책**, 전체 이미지
   (+ PDF 입력 시 Description 크롭 이미지), 판독 이슈 페이지 목록(1-A-2),
   (변경 정책인 경우) **그 화면 페이지 분의** 변경 표시 검출 결과·실측 표시색·확정 오탐 목록(1-A-3),
-  `_workspace/00_cid_register.md` 경로, **`_workspace/00_brief_analyst.md`**
+  `{WS}/00_cid_register.md` 경로, **`{WS}/00_brief_analyst.md`**
   (Phase 0 확정값 + 사양 발췌 원문 + 화면 인덱스 슬림판이 이 한 파일에 있다)
 - 상세 분석 절차: `prd-analyzer` 스킬 참조
-- 출력: `_workspace/01_prd_analysis_s{NN}.md`
+- 출력: `{WS}/01_prd_analysis_s{NN}.md`
 
 분석 중 모호한 항목은 "확인 불가"로 명시하고 진행 (추측 금지).
 
@@ -547,15 +708,15 @@ for 배치 in 배치 목록 (B01, B02, … 순):          # 1-B-1. 대개 화면
 
 `testcase-writer`에게 작업 할당:
 
-- 입력: `_workspace/01_prd_analysis_s{NN}.md` + `_workspace/02_sheet_format.md` + 대상 시트 URL·탭명
-  + **`_workspace/00_brief_writer.md`**(Phase 0 확정값 + 양식 발췌 원문) + **CH-ID 접두**
-  + `_workspace/00_cid_register.md`
+- 입력: `{WS}/01_prd_analysis_s{NN}.md` + `{WS}/02_sheet_format.md` + 대상 시트 URL·탭명
+  + **`{WS}/00_brief_writer.md`**(Phase 0 확정값 + 양식 발췌 원문) + **CH-ID 접두**
+  + `{WS}/00_cid_register.md`
 - **양식은 브리핑에 발췌 원문으로 들어 있다.** 브리핑에 없는 절이 필요하면 `.claude/formats/common.md`
   + 해당 프로파일을 직접 열어도 된다 — 다만 기본 로드는 브리핑으로 한다
 - **예외 화면 케이스의 피드백에 `[정책 예외] 문서 기본=… / 이 화면=…` 을 남기도록 지시한다**
 - 작업:
   1. 케이스 도출 (`testcase-generator` 스킬) — 판독 이슈 페이지 처리 규칙 적용 (0-J)
-  2. `_workspace/03_testcases_s{NN}.md`(메타·요약·근거 매핑) + `_workspace/03_rows_s{NN}.tsv`
+  2. `{WS}/03_testcases_s{NN}.md`(메타·요약·근거 매핑) + `{WS}/03_rows_s{NN}.tsv`
      (시트에 보낼 23컬럼 원본, 스크립트 전용) 작성 — **케이스 본문을 `.md` 에 중복 저장하지 않는다.**
      실측에서 `.md` 의 65%가 시트와 같은 케이스 전문이었고 리뷰어가 같은 텍스트를 두 번 읽었다.
      `.tsv` 는 append 부분 실패 시 복구 경로이며 사람도 모델도 읽지 않으므로 컨텍스트 비용이 0이다
@@ -576,9 +737,9 @@ for 배치 in 배치 목록 (B01, B02, … 순):          # 1-B-1. 대개 화면
 `testcase-reviewer`에게 작업 할당:
 
 - 입력: 그 화면의 01·03 파일 + `02_sheet_format.md` + 실제 시트의 작성된 행 범위
-  + **`_workspace/00_brief_reviewer.md`**(Phase 0 확정값 + 양식 발췌 원문)
+  + **`{WS}/00_brief_reviewer.md`**(Phase 0 확정값 + 양식 발췌 원문)
 - 작업: 세 경계면 교차 비교 (기획 ↔ 케이스, 양식 ↔ 케이스, 로컬 ↔ 시트)
-- 출력: `_workspace/04_review_report_s{NN}.md`
+- 출력: `{WS}/04_review_report_s{NN}.md`
 
 **화면 리뷰에서 제외하는 점검 — 전역 지표이므로 Phase 5로 이관됐다:**
 
@@ -611,16 +772,16 @@ for 배치 in 배치 목록 (B01, B02, … 순):          # 1-B-1. 대개 화면
 **합본 생성 — 셸로 이어 붙이고 내용을 읽지 않는다:**
 
 ```bash
-cd _workspace
+cd {WS}
 cat $(ls 01_prd_analysis_s*.md | sort) > 01_prd_analysis.md
 cat $(ls 03_testcases_s*.md    | sort) > 03_testcases.md
 cat $(ls 04_review_report_s*.md| sort) > 04_review_report.md
 wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 수·크기만
 ```
 
-- `_workspace/01_prd_analysis.md` — 화면별 분석 파일 순번대로 합산
-- `_workspace/03_testcases.md` — 화면별 TC 파일 순번대로 합산 (ID 순 정렬)
-- `_workspace/04_review_report.md` — 화면별 리뷰 보고서 합산 + 전체 요약
+- `{WS}/01_prd_analysis.md` — 화면별 분석 파일 순번대로 합산
+- `{WS}/03_testcases.md` — 화면별 TC 파일 순번대로 합산 (ID 순 정렬)
+- `{WS}/04_review_report.md` — 화면별 리뷰 보고서 합산 + 전체 요약
 
 > **⚠️ 합본을 `Read` 로 열지 않는다.** 실측 규모가 `01` 2.0MB · `03` 1.8MB · `04` 0.6MB 로,
 > 확인차 읽으면 그것만으로 **170만 토큰**이 든다. 합본은 **사람이 볼 산출물**이고
@@ -638,7 +799,7 @@ wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 �
 | CH-ID 충돌 0건 (한 탭에 두 체계가 섞이지 않았는가) | **Critical** |
 | 화면 인덱스 전 항목 상태 = `완료` | 미완료·`실패` 항목은 누락으로 보고 |
 
-- 출력: `_workspace/04_review_report.md` 의 「전체 집계 리뷰」 절
+- 출력: `{WS}/04_review_report.md` 의 「전체 집계 리뷰」 절
 - **분포 편차가 크게 나오면 케이스가 아니라 프로파일이 틀렸을 수 있다** — `profile-bootfactory`
   처럼 실측 근거가 없는 프로파일이면 그 가능성을 함께 보고한다
 
@@ -669,16 +830,16 @@ wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 �
 이슈가 없으면 "판독 이슈 없음"으로 명시한다.
 
 ### 산출물
-- `_workspace/00_screen_index.md` (화면 인덱스 — 진행 상태·시트 행 포함)
-- `_workspace/00_cid_register.md` (공통 DESC C-ID 레지스터)
-- `_workspace/01_prd_analysis_s{NN}.md` (화면별)
-- `_workspace/01_prd_analysis.md` (전체 합본)
-- `_workspace/02_sheet_format.md`
-- `_workspace/03_testcases_s{NN}.md` (화면별)
-- `_workspace/03_testcases.md` (전체 합본)
-- `_workspace/04_review_report_s{NN}.md` (화면별)
-- `_workspace/04_review_report.md` (전체 합본 + 전체 집계 리뷰)
-- `_workspace/00_image_quality.json` (이미지 판독 품질 진단 결과 — 이미지 입력 시)
+- `{WS}/00_screen_index.md` (화면 인덱스 — 진행 상태·시트 행 포함)
+- `{WS}/00_cid_register.md` (공통 DESC C-ID 레지스터)
+- `{WS}/01_prd_analysis_s{NN}.md` (화면별)
+- `{WS}/01_prd_analysis.md` (전체 합본)
+- `{WS}/02_sheet_format.md`
+- `{WS}/03_testcases_s{NN}.md` (화면별)
+- `{WS}/03_testcases.md` (전체 합본)
+- `{WS}/04_review_report_s{NN}.md` (화면별)
+- `{WS}/04_review_report.md` (전체 합본 + 전체 집계 리뷰)
+- `{SHARED}/00_image_quality.json` (이미지 판독 품질 진단 결과 — 이미지 입력 시)
 
 ### 다음 단계 권장
 - {전체 리뷰의 Critical 이슈 → 즉시 수정 제안}
@@ -697,20 +858,20 @@ wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 �
 
 | 자료 | 위치 | 생성자 | 소비자 |
 |------|------|--------|--------|
-| **화면 인덱스** | `_workspace/00_screen_index.md` | 오케스트레이터 (1-B~1-C, 루프 중 상태 갱신) | prd-analyst · testcase-writer · testcase-reviewer, 사용자 확인 |
-| **C-ID 레지스터** | `_workspace/00_cid_register.md` | 오케스트레이터 (1-B 선발급 / 루프 중 추가 발급) | prd-analyst (읽기·발급 요청), testcase-writer |
-| 화면 분석 | `_workspace/01_prd_analysis_s{NN}.md` | prd-analyst | testcase-writer, testcase-reviewer |
-| 전체 분석 합본 | `_workspace/01_prd_analysis.md` | 오케스트레이터 (Phase 5) | 사용자 참조 |
+| **화면 인덱스** | `{WS}/00_screen_index.md` | 오케스트레이터 (1-B~1-C, 루프 중 상태 갱신) | prd-analyst · testcase-writer · testcase-reviewer, 사용자 확인 |
+| **C-ID 레지스터** | `{WS}/00_cid_register.md` | 오케스트레이터 (1-B 선발급 / 루프 중 추가 발급) | prd-analyst (읽기·발급 요청), testcase-writer |
+| 화면 분석 | `{WS}/01_prd_analysis_s{NN}.md` | prd-analyst | testcase-writer, testcase-reviewer |
+| 전체 분석 합본 | `{WS}/01_prd_analysis.md` | 오케스트레이터 (Phase 5) | 사용자 참조 |
 | **양식 사양 — 공통 골격** | `.claude/formats/common.md` | 사람 (모드 B로 갱신) | sheet-analyst, testcase-writer, testcase-reviewer |
 | **양식 사양 — 제품 프로파일** | `.claude/formats/profile-{viola\|trombone\|bootfactory}.md` | 사람 (모드 B로 갱신) | 동상 — **공통 골격과 반드시 함께 읽는다** |
-| 시트 양식 (사양 + 실측) | `_workspace/02_sheet_format.md` | sheet-analyst | testcase-writer, testcase-reviewer (모든 화면 공유) |
-| 화면 케이스 요약·근거 매핑 | `_workspace/03_testcases_s{NN}.md` | testcase-writer | testcase-reviewer, 사용자 |
-| 화면 케이스 **원본 행** | `_workspace/03_rows_s{NN}.tsv` | testcase-writer | `verify_sheet_rows.py --diff` (**사람·모델이 읽지 않는다**) |
-| 전체 케이스 합본 | `_workspace/03_testcases.md` | 오케스트레이터 (Phase 5) | 사용자 참조 |
-| 화면 리뷰 | `_workspace/04_review_report_s{NN}.md` | testcase-reviewer | 오케스트레이터, 사용자 |
-| 전체 리뷰 합본 | `_workspace/04_review_report.md` | 오케스트레이터 (Phase 5) | 사용자 |
+| 시트 양식 (사양 + 실측) | `{WS}/02_sheet_format.md` | sheet-analyst | testcase-writer, testcase-reviewer (모든 화면 공유) |
+| 화면 케이스 요약·근거 매핑 | `{WS}/03_testcases_s{NN}.md` | testcase-writer | testcase-reviewer, 사용자 |
+| 화면 케이스 **원본 행** | `{WS}/03_rows_s{NN}.tsv` | testcase-writer | `verify_sheet_rows.py --diff` (**사람·모델이 읽지 않는다**) |
+| 전체 케이스 합본 | `{WS}/03_testcases.md` | 오케스트레이터 (Phase 5) | 사용자 참조 |
+| 화면 리뷰 | `{WS}/04_review_report_s{NN}.md` | testcase-reviewer | 오케스트레이터, 사용자 |
+| 전체 리뷰 합본 | `{WS}/04_review_report.md` | 오케스트레이터 (Phase 5) | 사용자 |
 | 시트 작성 결과 | 구글 시트 (대상 URL) | testcase-writer | testcase-reviewer |
-| 이미지 판독 품질 | `_workspace/00_image_quality.json` | 오케스트레이터 (1-A-2) | prd-analyst, testcase-writer, testcase-reviewer |
+| 이미지 판독 품질 | `{SHARED}/00_image_quality.json` | 오케스트레이터 (1-A-2) | prd-analyst, testcase-writer, testcase-reviewer |
 
 **⚠️ 서브에이전트가 오케스트레이터에게 돌려주는 리턴은 20줄 이내로 제한한다.**
 
@@ -755,7 +916,7 @@ wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 �
 | **배치에 정책이 섞여 있음** | 1-B-1 조건 위반이다. 배치를 정책별로 분리한 뒤 재실행 (섞인 채 진행하면 절반이 반대 기준으로 작성된다) |
 | 화면 수 과다 (예: 50개 초과) | 1-C 게이트에서 사이클 수(`3N+1`)를 알리고 범위 축소 여부 확인 |
 | 대상 시트 헤더가 사양과 불일치 | **작성 중단** + 사용자 확인. 사양 갱신(모드 B) 또는 대상 탭 교체 |
-| Phase 0 기본 정보 5개 중 하나라도 미확정 | **진행 중단** — 사용자에게 묻는다. 추정 금지 |
+| Phase 0 기본 정보 필수 6개 중 하나라도 미확정 | **진행 중단** — 사용자에게 묻는다. 추정 금지 |
 | 제품 유형에 해당하는 프로파일 파일이 없음 | 새 제품 가능성 → 참고 시트로 프로파일 신규 작성(모드 B) 제안 |
 | 제품 유형 ↔ 대상 시트 솔루션값 불일치 | **보고 후 확인** — 어느 쪽이 맞는지 사용자가 판단 |
 | 한 탭에 두 제품 솔루션값이 섞여 있음 | 최다값 사용 + 사용자에게 보고 (프로파일은 제품 단위) |
@@ -803,7 +964,7 @@ wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 �
 ### 특정 화면 재실행 흐름
 
 1. 사용자: "VIOE-02_01_02 케이스 다시 만들어줘"
-2. `_workspace/00_screen_index.md` 에서 그 화면 ID의 순번·페이지·CH-ID 접두·기존 시트 행 확인
+2. `{WS}/00_screen_index.md` 에서 그 화면 ID의 순번·페이지·CH-ID 접두·기존 시트 행 확인
 3. prd-analyst·sheet-analyst 호출 없음 (기존 산출물 재사용)
 4. testcase-writer만 호출, 그 화면 케이스 재생성
 5. reviewer가 새 케이스만 검토
@@ -819,18 +980,18 @@ wc -l 01_prd_analysis.md 03_testcases.md 04_review_report.md   # 확인은 행 �
 ## 산출물 체크리스트
 
 워크플로우 완료 시:
-- [ ] `_workspace/00_screen_index.md` 존재 (사용자 확인 완료 + 전 항목 상태 기록)
-- [ ] `_workspace/00_cid_register.md` 존재 (정의표 없는 C-ID 사용 0건)
+- [ ] `{WS}/00_screen_index.md` 존재 (사용자 확인 완료 + 전 항목 상태 기록)
+- [ ] `{WS}/00_cid_register.md` 존재 (정의표 없는 C-ID 사용 0건)
 - [ ] 화면별 `01_prd_analysis_s{NN}.md` 모두 존재
-- [ ] `_workspace/01_prd_analysis.md` (전체 합본) 존재
-- [ ] `_workspace/02_sheet_format.md` 존재 (최상단에 모드 A/B 명시, 헤더 대조 결과·다음 TC ID·**기존 CH-ID 최대값** 포함)
+- [ ] `{WS}/01_prd_analysis.md` (전체 합본) 존재
+- [ ] `{WS}/02_sheet_format.md` 존재 (최상단에 모드 A/B 명시, 헤더 대조 결과·다음 TC ID·**기존 CH-ID 최대값** 포함)
 - [ ] 화면별 `03_testcases_s{NN}.md` 모두 존재 (**첫 화면** 사용자 검토 완료)
 - [ ] 화면별 `03_rows_s{NN}.tsv` 모두 존재 + `--diff` 대조 통과 (행 수·전 셀 일치)
-- [ ] `_workspace/00_brief_{analyst|writer|reviewer}.md` 존재 (1-E, 루프 전 1회 생성)
-- [ ] `_workspace/03_testcases.md` (전체 합본) 존재
+- [ ] `{WS}/00_brief_{analyst|writer|reviewer}.md` 존재 (1-E, 루프 전 1회 생성)
+- [ ] `{WS}/03_testcases.md` (전체 합본) 존재
 - [ ] 화면별 `04_review_report_s{NN}.md` 모두 존재
-- [ ] `_workspace/04_review_report.md` (전체 합본 + **전체 집계 리뷰**) 존재
+- [ ] `{WS}/04_review_report.md` (전체 합본 + **전체 집계 리뷰**) 존재
 - [ ] 구글 시트의 작성된 행 범위가 화면별로 인덱스에 기록됨
-- [ ] 이미지 입력인 경우 `_workspace/00_image_quality.json` 존재 + 판독 이슈가 사용자에게 보고됨
+- [ ] 이미지 입력인 경우 `{SHARED}/00_image_quality.json` 존재 + 판독 이슈가 사용자에게 보고됨
 - [ ] 판독 `불가` 페이지가 추측 케이스 없이 판독 불가 케이스로 남음
 - [ ] 사용자가 결과를 확인하고 피드백 기회를 제공받음

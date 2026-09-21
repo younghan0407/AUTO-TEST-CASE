@@ -18,12 +18,30 @@ AGENTS=(.claude/agents/prd-analyst.md
         .claude/agents/testcase-reviewer.md
         .claude/agents/sheet-analyst.md)
 FORMATS=(.claude/formats/common.md)
-DOCS=(README.md HARNESS_OVERVIEW.md HARNESS_WORKFLOW.md docs/PROMPTS.md)
+DOCS=(README.md SETUP.md docs/AT_A_GLANCE.md docs/BASICS.md docs/PROMPTS.md docs/DESIGN_DECISIONS.md
+      HARNESS_PIPELINE.md HARNESS_WORKFLOW.md HARNESS_OVERVIEW.md
+      HARNESS_SETUP_PROMPT.md)
 AUGMENT=(.claude/skills/testcase-augment/SKILL.md
          .claude/agents/tc-augmenter.md
          .claude/skills/testcase-generator/references/exception-catalog.md
          .claude/skills/testcase-generator/references/permission-mode.md
          .claude/skills/testcase-reviewer/references/augment-mode.md)
+ORCH=(.claude/skills/testcase-auto/SKILL.md
+      .claude/skills/testcase-augment/SKILL.md)
+# _workspace 문자열이 한 번도 나오면 안 되는 파일들 (루트 정의는 ORCH 에만 둔다)
+NOWS=(.claude/agents/prd-analyst.md
+      .claude/agents/testcase-writer.md
+      .claude/agents/testcase-reviewer.md
+      .claude/agents/sheet-analyst.md
+      .claude/agents/tc-augmenter.md
+      .claude/skills/prd-analyzer/SKILL.md
+      .claude/skills/prd-analyzer/references/image-input.md
+      .claude/skills/prd-analyzer/references/change-mode.md
+      .claude/skills/prd-analyzer/references/figma.md
+      .claude/skills/testcase-generator/SKILL.md
+      .claude/skills/testcase-reviewer/SKILL.md
+      .claude/skills/testcase-reviewer/references/augment-mode.md
+      .claude/formats/common.md)
 CORE=("${SKILLS[@]}" "${AGENTS[@]}" "${FORMATS[@]}")
 CORE=("${CORE[@]}" "${AUGMENT[@]}")
 
@@ -210,8 +228,63 @@ present "범위 오타는 Critical"           'SCOPE_NO_MATCH' \
 present "작업 유형은 한 실행에 하나"     '한 실행에 한 유형|하나만' \
                                                .claude/skills/testcase-augment/SKILL.md
 
+echo "── 문서 체계 가드 (2026-09-15) ────────────────────────────"
+# 문서가 낡은 채 방치된 원인은 가드의 검사 대상(DOCS)에서 빠져 있던 것이다.
+# 삭제·개명된 것을 가리키는 링크는 클론한 사람에게 404 가 된다.
+absent_h "삭제된 HARNESS_SUMMARY 참조" 'HARNESS_SUMMARY'   "${CORE[@]}" "${DOCS[@]}"
+absent   "제거된 루트 렌더 PDF 참조"   'HARNESS_[A-Z_]+\.pdf' "${DOCS[@]}"
+absent   "폐지된 사양 파일 경로"       'formats/team-'      "${CORE[@]}" "${DOCS[@]}"
+present  "원리 문서 3종의 문서 지도"   '이 문서가 답하는 질문' HARNESS_PIPELINE.md \
+                                               HARNESS_WORKFLOW.md \
+                                               HARNESS_OVERVIEW.md
+present  "세팅 문서의 게이트 3곳"      '멈추는 곳 3군데|게이트.{0,3}3곳' SETUP.md
+present  "이식 문서는 .claude 단일출처" '단일 출처' HARNESS_SETUP_PROMPT.md
+present  "설계 백서의 권위 선언"       '권위는 .CLAUDE.md. 변경 이력 표' docs/DESIGN_DECISIONS.md
+present  "설계 백서가 문서 지도에 있음" 'DESIGN_DECISIONS' README.md
+present  "기초 문서가 문서 지도에 있음"   'BASICS' README.md SETUP.md \
+                                               HARNESS_PIPELINE.md \
+                                               HARNESS_WORKFLOW.md \
+                                               HARNESS_OVERVIEW.md
+present  "기초 문서는 흐름을 복제하지 않음" '흐름을 설명하지 않는다' docs/BASICS.md
+present  "기초 문서는 규칙의 권위가 아님"   '그쪽이 맞다' docs/BASICS.md
+present  "한 장 요약이 문서 지도에 있음"   'AT_A_GLANCE' README.md \
+                                               HARNESS_PIPELINE.md \
+                                               HARNESS_WORKFLOW.md \
+                                               HARNESS_OVERVIEW.md \
+                                               docs/BASICS.md
+present  "한 장 요약에 구조적 공백 절"   '구조적 공백' docs/AT_A_GLANCE.md
+present  "한 장 요약에 커버리지 분모 명시" '분모는 제품이 아니라 기획서' docs/AT_A_GLANCE.md
+
 echo "── CLI 명령 오표기 가드 ───────────────────────────────────"
 absent "get_metadata 셸 명령 표기" 'sheets_api\.py get_metadata' "${CORE[@]}" "${DOCS[@]}"
+
+echo "── 작업 디렉터리 재편 (2026-09-19) ────────────────────────"
+present "이미지 재사용 manifest 대조" 'manifest\.json' \
+        .claude/skills/prd-analyzer/SKILL.md
+present "manifest 키는 PDF 내용 해시"  'sha256' \
+        .claude/skills/prd-analyzer/SKILL.md
+present "에이전트는 치환된 실제 경로를 받는다" '스스로 치환하지 않는다' \
+        .claude/agents/prd-analyst.md .claude/agents/testcase-writer.md \
+        .claude/agents/testcase-reviewer.md .claude/agents/sheet-analyst.md \
+        .claude/agents/tc-augmenter.md
+absent "에이전트·비오케스트레이터 문서의 _workspace 하드코딩" '_workspace' "${NOWS[@]}"
+present "augment 는 제품·버전 폴더 밖" '_workspace/augment' \
+        .claude/skills/testcase-augment/SKILL.md
+# 단순히 '{WS}' 가 있는지 보면 안 된다 — 두 파일에 60여 회 나오므로, **두 변수에 값을
+# 주는 0-0 의 정의 행**(이 재편 전체의 단일 출처)을 지워도 8개 가드가 전부 통과한다.
+# 그래서 정의 행의 형태를 그대로 찾되 **두 변수를 한 패턴에 함께 요구한다** — `{WS}` 쪽만
+# 고정하면 같은 줄의 `{SHARED}` 정의만 지워도 통과하고, `{SHARED}` 는 60여 회 쓰인다.
+# ORCH 가 아니라 testcase-auto 단독인 이유: testcase-augment 는 원천이 시트라 공용 이미지
+# 트리가 없어 정의 행에 `{SHARED}` 가 **의도적으로** 없다. 그쪽 정의 행은 바로 위
+# `present '_workspace/augment'` 가 이미 정확히 한 줄로 고정한다.
+present "작업 루트 변수 정의 행" '\{WS\}` = `_workspace/.*\{SHARED\}` = `_workspace/' \
+        .claude/skills/testcase-auto/SKILL.md
+absent "오케스트레이터의 산출물 경로 하드코딩" \
+       '_workspace/[0-9]|_workspace/pdf_images|_workspace/red_regions' "${ORCH[@]}"
+# 패턴에서 단독 '남긴다' 를 뺀 이유 — 바로 아래 해설 단락이 `shared/` 와 '남기는' 을 함께
+# 갖고 있어, 그 한 낱말만 '남긴다' 로 고쳐도 0-5 의 규칙 행이 사라진 채 통과한다.
+present "재실행 시 shared 보존" 'shared/.{0,12}(제자리|이동하지)' \
+        .claude/skills/testcase-auto/SKILL.md
 
 echo
 if [ "$fail" -eq 0 ]; then

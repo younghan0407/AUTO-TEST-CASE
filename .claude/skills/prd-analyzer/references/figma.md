@@ -1,5 +1,7 @@
 # Figma API 경로
 
+> 경로의 `{WS}`·`{SHARED}` 는 오케스트레이터가 **실제 경로로 치환해 프롬프트에 적어** 준다. 스스로 치환하지 않는다.
+
 > `prd-analyzer` SKILL의 분리된 참조 문서다. **기획서 입력이 Figma URL일 때에만 읽는다.**
 > 본문 절 번호는 원래 SKILL의 것을 그대로 유지하므로 다른 문서의 상호 참조
 > (예: `prd-analyzer` PDF-3.5)가 그대로 유효하다.
@@ -61,7 +63,7 @@ python scripts/figma_api.py images <FILE_KEY> <NODE_IDS> --format=png --scale=1
 
 ### 5. 결과 저장
 
-`_workspace/01_prd_analysis.md`에 저장. 형식은 `prd-analyst` 에이전트 정의 참조.
+`{WS}/01_prd_analysis.md`에 저장. 형식은 `prd-analyst` 에이전트 정의 참조.
 
 ## Figma API 응답 핵심 필드
 

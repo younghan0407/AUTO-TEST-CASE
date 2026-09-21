@@ -40,6 +40,17 @@ description: 이미 작성된 테스트 케이스를 원천으로 예외 사항 
 **추정 금지.** 답이 없으면 진행하지 않는다 — 잘못 추정한 항목 하나가 전 행에 박힌다.
 `AskUserQuestion` 으로 선택지를 제시하면 왕복이 줄어든다.
 
+#### 0-0. 작업 디렉터리
+
+**`{WS}` = `_workspace/augment`** — 제품·버전 폴더 **밖**이다.
+
+이 절차의 원천은 기획서가 아니라 **구글 시트**라 문서 판본 개념이 없다.
+제품·버전 폴더 안에 두면 실행할 때마다 *어느 판본 폴더에 넣을지* 를 물어야 하는데
+그 답에 의미가 없다.
+
+`{SHARED}` 는 쓰지 않는다 — 이 절차는 기획서 이미지를 보지 않는다.
+이후 본문에서는 `{WS}` 로만 지칭한다.
+
 #### 0-1. 환경 검증
 
 - `GOOGLE_APPLICATION_CREDENTIALS` 가 유효한 경로를 가리키는가 (또는
@@ -134,8 +145,8 @@ description: 이미 작성된 테스트 케이스를 원천으로 예외 사항 
 
 #### 0-7. 기존 산출물 확인
 
-- `_workspace/augment/` 가 없음 → **초기 실행**
-- 있고 사용자가 "다시" 요청 → `_workspace/augment_prev_{날짜}/` 로 이동 후 새 실행
+- `{WS}/` 가 없음 → **초기 실행**
+- 있고 사용자가 "다시" 요청 → `{WS}_prev_{날짜}/` 로 이동 후 새 실행
 - 있고 이어 진행 → 완료 안 된 배치부터
 
 ### Phase 1: 인벤토리 + 게이트
@@ -147,7 +158,7 @@ python scripts/read_tc_inventory.py \
     --source-sheet=<원본 URL> --source-tab='03_파드' \
     --target-sheet=<대상 URL> --target-tab='03_파드_예외' \
     --screen-id='VIOE-03_01_01-01' --screen-id='VIOE-03_01_01-02' \
-    --out-dir=_workspace/augment
+    --out-dir={WS}
 ```
 
 - 원본 탭이 여럿이면 `--source-tab` 을 여러 번 준다
@@ -184,7 +195,7 @@ python scripts/read_tc_inventory.py \
 | PDF | `python scripts/pdf_to_images.py <pdf> --dpi=150 --tile=auto --output-dir=…` 후 판독 |
 | 이미지 | `python scripts/check_image_quality.py <경로>` 게이트 통과 후 판독 |
 
-산출물: `_workspace/augment/11_permission_matrix.md` — **역할 × 기능 → 권한값** 표 +
+산출물: `{WS}/11_permission_matrix.md` — **역할 × 기능 → 권한값** 표 +
 **기능 ↔ 원본 TC 기능 단위 대응표** (판정 컬럼: `확정` / `미대응` / `후보 여럿`).
 
 **게이트 (필수):** 두 표를 사용자에게 보여주고 확인받는다.
@@ -263,12 +274,12 @@ python scripts/read_tc_inventory.py \
 #### 1-D. 역할별 브리핑 생성 (루프 진입 전 1회)
 
 ```bash
-# Phase 0 확정값 표를 먼저 파일로 저장 → _workspace/augment/10_phase0.md
+# Phase 0 확정값 표를 먼저 파일로 저장 → {WS}/10_phase0.md
 for R in augmenter reviewer; do
   python scripts/build_brief.py --role=$R \
       --profile={viola|trombone|bootfactory} --doc-type=추가 \
-      --phase0=_workspace/augment/10_phase0.md \
-      --out=_workspace/augment/10_brief_$R.md
+      --phase0={WS}/10_phase0.md \
+      --out={WS}/10_brief_$R.md
 done
 ```
 
@@ -318,7 +329,7 @@ Phase 3: 검증 (스크립트 + 리뷰어 1회)
 **3-1. 결정적 양식 점검 (스크립트)**
 
 ```bash
-cd _workspace/augment
+cd {WS}
 head -1 $(ls 13_rows_EX-B*.tsv | sort | head -1) > 13_rows_all_EX.tsv
 for f in $(ls 13_rows_EX-B*.tsv | sort); do tail -n +2 "$f" >> 13_rows_all_EX.tsv; done
 cd ../..
@@ -326,7 +337,7 @@ cd ../..
 python scripts/verify_sheet_rows.py --profile={프로파일} \
     --sheet=<대상> --tab='{탭}' --rows=<시작>-<끝>
 python scripts/verify_sheet_rows.py --profile={프로파일} \
-    --tsv=_workspace/augment/13_rows_all_EX.tsv --sheet=<대상> --tab='{탭}' --diff
+    --tsv={WS}/13_rows_all_EX.tsv --sheet=<대상> --tab='{탭}' --diff
 ```
 
 - **이 스크립트는 수정되지 않았다.** `비고` 를 공란 여부로만 보고 태그 어휘를 검사하지 않으므로
@@ -338,7 +349,7 @@ python scripts/verify_sheet_rows.py --profile={프로파일} \
 - 입력: `10_tc_inventory.md` · (권한) `11_permission_matrix.md` · `12_cases_*.md` ·
   시트 작성 행 범위 · `10_brief_reviewer.md` ·
   **`.claude/skills/testcase-reviewer/references/augment-mode.md` 경로**
-- 출력: `_workspace/augment/14_review_report_{EX|PM}.md`
+- 출력: `{WS}/14_review_report_{EX|PM}.md`
 
 **리뷰어 프롬프트에 반드시 넣을 오판 방지 항목** (상세는 `augment-mode.md`):
 
@@ -373,11 +384,11 @@ python scripts/verify_sheet_rows.py --profile={프로파일} \
 | `클러스터 설정` (권한 자료) | 원본 TC에 대응 기능 없음 — 화면 ID 승계 불가 |
 
 ### 산출물
-- `_workspace/augment/10_tc_inventory.md` / `.json`
-- `_workspace/augment/11_permission_matrix.md` (권한 모드)
-- `_workspace/augment/12_cases_{EX|PM}-B{NN}.md` (배치별)
-- `_workspace/augment/13_rows_{EX|PM}-B{NN}.tsv` + `13_rows_all_{EX|PM}.tsv`
-- `_workspace/augment/14_review_report_{EX|PM}.md`
+- `{WS}/10_tc_inventory.md` / `.json`
+- `{WS}/11_permission_matrix.md` (권한 모드)
+- `{WS}/12_cases_{EX|PM}-B{NN}.md` (배치별)
+- `{WS}/13_rows_{EX|PM}-B{NN}.tsv` + `13_rows_all_{EX|PM}.tsv`
+- `{WS}/14_review_report_{EX|PM}.md`
 
 ### 다음 단계 권장
 - {Critical → 즉시 수정 제안} / {`[기획 확인]` 항목 → 기획 확인 목록 정리}
@@ -387,13 +398,13 @@ python scripts/verify_sheet_rows.py --profile={프로파일} \
 
 | 자료 | 위치 | 생성자 | 소비자 |
 |------|------|--------|--------|
-| 원본 TC 인벤토리 | `_workspace/augment/10_tc_inventory.md` / `.json` | `read_tc_inventory.py` | 오케스트레이터(표·번호만), `tc-augmenter`(배치 발췌) |
-| 권한 매트릭스 | `_workspace/augment/11_permission_matrix.md` | 오케스트레이터 (1-B) | 사용자 게이트, `tc-augmenter`, `testcase-reviewer` |
-| 역할 브리핑 | `_workspace/augment/10_brief_{augmenter\|reviewer}.md` | `build_brief.py` | 각 에이전트 |
-| 배치 케이스 요약·근거 매핑 | `_workspace/augment/12_cases_{EX\|PM}-B{NN}.md` | `tc-augmenter` | `testcase-reviewer`, 사용자 |
-| 배치 **원본 행** | `_workspace/augment/13_rows_{EX\|PM}-B{NN}.tsv` | `tc-augmenter` | `verify_sheet_rows.py --diff` (**사람·모델이 읽지 않는다**) |
-| 합본 원본 행 | `_workspace/augment/13_rows_all_{EX\|PM}.tsv` | 오케스트레이터 (셸 병합) | `verify_sheet_rows.py --diff` |
-| 리뷰 보고 | `_workspace/augment/14_review_report_{EX\|PM}.md` | `testcase-reviewer` | 오케스트레이터, 사용자 |
+| 원본 TC 인벤토리 | `{WS}/10_tc_inventory.md` / `.json` | `read_tc_inventory.py` | 오케스트레이터(표·번호만), `tc-augmenter`(배치 발췌) |
+| 권한 매트릭스 | `{WS}/11_permission_matrix.md` | 오케스트레이터 (1-B) | 사용자 게이트, `tc-augmenter`, `testcase-reviewer` |
+| 역할 브리핑 | `{WS}/10_brief_{augmenter\|reviewer}.md` | `build_brief.py` | 각 에이전트 |
+| 배치 케이스 요약·근거 매핑 | `{WS}/12_cases_{EX\|PM}-B{NN}.md` | `tc-augmenter` | `testcase-reviewer`, 사용자 |
+| 배치 **원본 행** | `{WS}/13_rows_{EX\|PM}-B{NN}.tsv` | `tc-augmenter` | `verify_sheet_rows.py --diff` (**사람·모델이 읽지 않는다**) |
+| 합본 원본 행 | `{WS}/13_rows_all_{EX\|PM}.tsv` | 오케스트레이터 (셸 병합) | `verify_sheet_rows.py --diff` |
+| 리뷰 보고 | `{WS}/14_review_report_{EX\|PM}.md` | `testcase-reviewer` | 오케스트레이터, 사용자 |
 | **케이스 본문** | **구글 시트 (단일 출처)** | `tc-augmenter` | 사람, `verify_sheet_rows.py` |
 | 양식 사양 | `.claude/formats/common.md` + 제품 프로파일 | 사람 | 브리핑 경유 |
 
@@ -432,7 +443,7 @@ python scripts/verify_sheet_rows.py --profile={프로파일} \
 
 ## 산출물 체크리스트
 
-- [ ] `_workspace/augment/10_tc_inventory.md` / `.json` 존재 (Critical 0건 확인)
+- [ ] `{WS}/10_tc_inventory.md` / `.json` 존재 (Critical 0건 확인)
 - [ ] (권한) `11_permission_matrix.md` 존재 + **사용자 확인 게이트 통과**
 - [ ] `10_brief_{augmenter|reviewer}.md` 존재 (루프 전 1회 생성)
 - [ ] 배치별 `12_cases_{EX|PM}-B{NN}.md` 모두 존재 (**첫 배치** 사용자 검토 완료)

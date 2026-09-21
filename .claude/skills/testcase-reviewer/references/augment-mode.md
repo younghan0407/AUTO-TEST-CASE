@@ -59,7 +59,7 @@ python scripts/verify_sheet_rows.py --profile={프로파일} --tsv=<13_rows_all_
 
 ## 산출물
 
-`_workspace/augment/14_review_report_{EX|PM}.md`
+`{WS}/augment/14_review_report_{EX|PM}.md`
 
 - 등급별 건수 + 항목별 판정 + 근거 (시트 행 번호·원본 TC ID·매트릭스 셀)
 - **오케스트레이터에게 돌려주는 리턴은 20줄 이내** — 파일 경로·등급별 건수·
