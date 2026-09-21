@@ -27,7 +27,8 @@ AUGMENT=(.claude/skills/testcase-augment/SKILL.md
          .claude/skills/testcase-generator/references/permission-mode.md
          .claude/skills/testcase-reviewer/references/augment-mode.md)
 ORCH=(.claude/skills/testcase-auto/SKILL.md
-      .claude/skills/testcase-augment/SKILL.md)
+      .claude/skills/testcase-augment/SKILL.md
+      .claude/skills/prd-digest/SKILL.md)
 # _workspace 문자열이 한 번도 나오면 안 되는 파일들 (루트 정의는 ORCH 에만 둔다)
 NOWS=(.claude/agents/prd-analyst.md
       .claude/agents/testcase-writer.md
@@ -277,11 +278,14 @@ present "augment 는 제품·버전 폴더 밖" '_workspace/augment' \
 # 주는 0-0 의 정의 행**(이 재편 전체의 단일 출처)을 지워도 8개 가드가 전부 통과한다.
 # 그래서 정의 행의 형태를 그대로 찾되 **두 변수를 한 패턴에 함께 요구한다** — `{WS}` 쪽만
 # 고정하면 같은 줄의 `{SHARED}` 정의만 지워도 통과하고, `{SHARED}` 는 60여 회 쓰인다.
-# ORCH 가 아니라 testcase-auto 단독인 이유: testcase-augment 는 원천이 시트라 공용 이미지
-# 트리가 없어 정의 행에 `{SHARED}` 가 **의도적으로** 없다. 그쪽 정의 행은 바로 위
+# ORCH 전체가 아닌 이유: testcase-augment 는 원천이 시트라 공용 이미지 트리가 없어 정의
+# 행에 `{SHARED}` 가 **의도적으로** 없다. 그쪽 정의 행은 바로 위
 # `present '_workspace/augment'` 가 이미 정확히 한 줄로 고정한다.
+# prd-digest 는 `{WS}`·`{SHARED}` 를 **둘 다** 정의하므로(같은 shared 트리를 testcase-auto 와
+# 공유하는 것이 그 배치의 목적이다) 이 가드가 덮는다 — 신설이 아니라 파일 목록 확장이다.
 present "작업 루트 변수 정의 행" '\{WS\}` = `_workspace/.*\{SHARED\}` = `_workspace/' \
-        .claude/skills/testcase-auto/SKILL.md
+        .claude/skills/testcase-auto/SKILL.md \
+        .claude/skills/prd-digest/SKILL.md
 absent "오케스트레이터의 산출물 경로 하드코딩" \
        '_workspace/[0-9]|_workspace/pdf_images|_workspace/red_regions' "${ORCH[@]}"
 # 패턴에서 단독 '남긴다' 를 뺀 이유 — 바로 아래 해설 단락이 `shared/` 와 '남기는' 을 함께
@@ -306,6 +310,20 @@ present "분류 5종에 미변경 포함" '미변경' \
         .claude/agents/prd-digester.md
 present "리뷰 역방향 오판 금지" '역방향 오판|오판 금지' \
         .claude/skills/testcase-reviewer/references/digest-mode.md
+# 아래 셋은 오케스트레이터(`prd-digest` SKILL)가 혼자 지는 규칙이다 — 에이전트도 스크립트도
+# 이 판단을 대신할 수 없어, 선언이 사라지면 아무 데서도 드러나지 않는다.
+#
+# `IA 는 권위가 아니다` 패턴은 본문 다른 문장에 걸리기 쉬운 형태다(2026-09-15 「권위 선언」·
+# 「분모」 가드와 같은 함정). 그래서 낱말 하나가 아니라 **`IA 부재`/`IA 에 없다` 와
+# `신호`/`근거가 아니` 를 한 줄에서 함께** 요구한다 — 그 선언 문장만이 이 형태를 만족한다.
+# 음성 대조로 확인했다: 선언 한 줄을 지우면 FAIL 한다(본문의 `IA 에 없는 화면` 목록 서술은
+# `에 없다` 가 아니라 `에 없는` 이라 걸리지 않는다).
+present "IA 는 권위가 아니다"     'IA (부재|에 없다).*(신호|근거가 아니)' \
+        .claude/skills/prd-digest/SKILL.md
+present "두 MD 는 한 TSV 에서 렌더" '한 벌의 TSV|같은 TSV 에서' \
+        .claude/skills/prd-digest/SKILL.md
+present "TROMBONE 미지원"          'TROMBONE.*(중단|미지원|추후)' \
+        .claude/skills/prd-digest/SKILL.md
 
 echo
 if [ "$fail" -eq 0 ]; then
