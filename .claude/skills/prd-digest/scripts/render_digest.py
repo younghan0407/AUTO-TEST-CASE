@@ -22,7 +22,13 @@ import os
 import re
 import sys
 
-CLASSES = ("신규", "변경", "삭제", "확인 필요")
+CLASSES = ("신규", "변경", "삭제", "확인 필요", "미변경")
+# `04_신규변경.md` 에 절을 얻지 못하는 분류. `미변경` 은 **변경 문서의 값이 아니라 기능 목록의
+# 값**이다 — `03` 에는 그대로 실리고 `04` 에서는 요약 표에만 집계된다. 절까지 주면 변경 문서가
+# 미변경 수백 건으로 뒤덮여 목적을 잃는다(실측 규모: 화면 127개 · 변경 항목 165건).
+# 집합 연산으로 뽑는 이유 — 분류가 늘면 **기본값이 "절을 준다"** 여야 새 분류가 조용히 빠지지 않는다.
+NO_SECTION = ("미변경",)
+SECTION_CLASSES = tuple(c for c in CLASSES if c not in NO_SECTION)
 GLOBAL_ID = "문서 전역"
 COLS = 7
 
@@ -213,7 +219,7 @@ def render_changes_md(rows, tree, titles, header: dict) -> str:
         out.append("해당 없음.")
     out.append("")
 
-    for c in CLASSES:
+    for c in SECTION_CLASSES:
         out.append("## %s" % c)
         out.append("")
         sel = [r for r in scr if r["cls"] == c]
@@ -305,7 +311,8 @@ def _selftest() -> int:
         chk("S5 신규변경에는 문서 전역 절이 있다", "## 문서 전역" in c_md and "신규 메뉴 4건" in c_md)
         chk("S6 공통 정의 절이 앞에 온다",
             f_md.index("## 공통 정의 (메뉴 경로 없음)") < f_md.index("## 모니터링 > 외부 알람 설정"))
-        chk("S7 분류 4종 절이 모두 있다", all(("## %s" % c) in c_md for c in CLASSES))
+        chk("S7 절이 있는 분류는 모두 절을 갖는다", all(("## %s" % c) in c_md for c in SECTION_CLASSES))
+        chk("S7 미변경은 절을 얻지 않는다", "## 미변경" not in c_md)
         only_new = [r for r in rows if r["cls"] == "신규"]
         c_only = render_changes_md(only_new, t, titles, hdr)
         chk("S7 비어 있는 분류 절은 '해당 없음'",
@@ -448,6 +455,35 @@ def _selftest() -> int:
         finally:
             import shutil
             shutil.rmtree(ws7)
+
+    # S18 — `미변경` 은 기능 목록에는 실리고 변경 문서에는 절을 얻지 않는다.
+    #       요약 표에는 집계된다(전체 중 얼마가 그대로인지가 읽는 사람에게 필요한 맥락이다).
+    ws8 = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(ws8, "02_features_s01.tsv"), "w", encoding="utf-8") as f:
+            f.write("VIOE-11_11_11\t신규기능\t설명\t신규\t[스티커 p001] v1추가\tp001\t\n")
+            f.write("VIOE-11_11_11\t변경기능\t설명\t변경\t[DESC p001-2항] v1수정\tp001\t\n")
+            f.write("VIOE-11_11_11\t삭제기능\t설명\t삭제\t[취소선 p001] 날짜미표기\tp001\t\n")
+            f.write("VIOE-11_11_11\t불명기능\t설명\t확인 필요\t\tp001\t\n")
+            f.write("VIOE-11_11_11\t그대로기능\t설명\t미변경\t\tp001\t\n")
+            f.write("VIOE-11_11_11\t그대로기능2\t설명\t미변경\t\tp001\t\n")
+        rs8 = read_features(ws8)
+        hdr8 = {"product": "TEST", "doc": "test"}
+        f8 = render_features_md(rs8, None, {}, hdr8)
+        c8 = render_changes_md(rs8, None, {}, hdr8)
+        chk("S18 미변경 기능이 03 기능 목록에 실린다",
+            "그대로기능" in f8 and "그대로기능2" in f8)
+        chk("S18 03 의 분류 열에 미변경이 그대로 보인다", "| 미변경 |" in f8)
+        chk("S18 04 에 미변경 절이 없다", "## 미변경" not in c8)
+        chk("S18 04 본문에 미변경 기능이 실리지 않는다", "그대로기능" not in c8)
+        chk("S18 04 요약 표는 미변경을 집계한다",
+            re.search(r"\| 미변경 \| 2 \| 1 \|", c8) is not None,
+            [l for l in c8.splitlines() if "미변경" in l])
+        chk("S18 나머지 네 분류는 절을 갖는다",
+            all(("## %s" % c) in c8 for c in SECTION_CLASSES))
+    finally:
+        import shutil
+        shutil.rmtree(ws8)
 
     print()
     if fails:

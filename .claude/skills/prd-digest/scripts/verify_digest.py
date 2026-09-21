@@ -23,7 +23,10 @@ import os
 import re
 import sys
 
-CLASSES = ("신규", "변경", "삭제", "확인 필요")
+CLASSES = ("신규", "변경", "삭제", "확인 필요", "미변경")
+# `미변경` 은 `변경` 문서의 **바뀌지 않은 기능**이다. 이 값이 없으면 에이전트가 그 기능을
+# 버리거나(`03` 이 전체 목록이 아니게 되는데 한 화면에 한 행만 남아도 `SCREEN_MISSING` 은
+# 울리지 않아 **손실을 아무도 감지하지 못한다**) `확인 필요` 로 몰아 변경 문서를 무력화한다.
 GLOBAL_ID = "문서 전역"
 COLS = 7
 EVIDENCE_REQUIRED = ("신규", "변경", "삭제")
@@ -336,6 +339,14 @@ def _selftest() -> int:
     with tempfile.TemporaryDirectory() as ws:
         build(ws, [["VIOE-01", "기능", "설명", "신설", "[스티커 p001]", "p001", ""]])
         chk("S25 Critical 이 있으면 종료 코드 2", exit_code(["--ws=" + ws]) == 2)
+
+    # `미변경` 은 근거 면제다 — `EVIDENCE_REQUIRED` 에 넣지 않았다.
+    # 바뀌지 않은 기능에 변경 근거를 요구하면 `확인 필요` 와 같은 자기모순이 된다.
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [["VIOE-01", "그대로기능", "설명", "미변경", "", "p001", ""]])
+        c = codes(ws)
+        chk("S26 미변경은 분류 enum 안이다", "CLASS_ENUM" not in c, c)
+        chk("S27 미변경 행은 근거가 없어도 통과", c == set(), c)
 
     print()
     print("  심어 둔 위반 %d종: %s" % (len(injected), ", ".join(sorted(injected))))
