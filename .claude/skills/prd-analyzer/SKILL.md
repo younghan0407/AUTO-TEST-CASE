@@ -1,6 +1,6 @@
 ---
 name: prd-analyzer
-description: 기획서(PRD)를 분석하여 화면·컴포넌트·사용자 플로우·기능 단위를 추출. 기획서 분석, 화면 인벤토리 작성, 테스트 가능한 기능 단위 추출이 필요할 때 반드시 이 스킬을 사용할 것. 입력은 Figma URL / PDF 파일 / 이미지(PNG 등) 파일·디렉터리. 재분석·특정 화면만 보완 요청도 포함.
+description: 기획서(PRD)에서 화면·컴포넌트·사용자 플로우·기능 단위를 추출하는 실행 절차. 입력 유형 판별(Figma URL / PDF 파일 / 이미지(PNG 등) 파일·디렉터리) · 이미지 변환 · 판독 품질 게이트 · 시각 판독 절차를 규정한다. `prd-analyst`·`prd-digester` 에이전트가 판독을 수행할 때 읽는 도구 스킬이며 사용자 요청 어휘로 직접 고르는 스킬이 아니다 — 요청이 어느 절차로 갈지는 `CLAUDE.md` 트리거 절이 정한다. 재판독·특정 화면 보완도 같은 절차다.
 ---
 
 # PRD Analyzer
@@ -53,6 +53,7 @@ PDF를 요구하거나 되돌려 받으려 하지 않는다. 이미지가 곧 �
 | 입력이 **이미지** 파일·디렉터리 | `references/image-input.md` (IMG-1 ~ IMG-5) |
 | 입력이 **Figma URL** | `references/figma.md` |
 | 기획서 유형이 **`변경`** 또는 이 화면이 **변경 정책**(정책 예외) | `references/change-mode.md` (PDF-3.5 / IMG-4) |
+| 작업 유형이 **기획서 분석(`prd-digest`)** | `references/digest-mode.md` (D-1 ~ D-7) + 기획서 유형이 **`변경`** 이면 `references/change-mode.md` 도 함께. **산출물은 이 SKILL 본문의 체크리스트가 아니라 `digest-mode.md` D-1 이 정한다** — `01_prd_analysis_s{NN}.md` 를 만들지 않고 `02_screen_s{NN}.md` + `02_features_s{NN}.tsv` 를 낸다 |
 
 - **조건에 맞지 않는 파일은 열지 않는다.** PDF + `신규` 실행이면 본문만으로 완결된다
 - 참조 문서는 **절 번호를 원본 그대로** 유지한다 — 다른 문서의 `prd-analyzer` PDF-3.5 같은 상호 참조가 그대로 유효하다

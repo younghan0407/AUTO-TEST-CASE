@@ -46,6 +46,7 @@ def check_packages():
         ("google.auth", "google-auth", "서비스 계정 인증", True),
         ("googleapiclient", "google-api-python-client", "Sheets API 호출", True),
         ("google_auth_oauthlib", "google-auth-oauthlib", "새 시트 생성(OAuth2)", False),
+        ("openpyxl", "openpyxl", "메뉴 IA 엑셀 읽기", True),
     ]
     missing = []
     for mod, pip_name, purpose, required in pkgs:
@@ -65,7 +66,8 @@ def check_symlinks():
         "figma_api.py", "pdf_to_images.py", "detect_red_regions.py",
         "detect_strikethrough.py", "check_image_quality.py", "prd_cache.py",
         "build_brief.py", "read_tc_inventory.py", "verify_sheet_rows.py",
-        "sheets_api.py", "oauth_sheet.py",
+        "sheets_api.py", "oauth_sheet.py", "parse_menu_ia.py", "render_digest.py",
+        "verify_digest.py",
     ]
     broken = []
     for name in expected:
@@ -83,9 +85,9 @@ def check_symlinks():
 def check_harness_files():
     skills = os.path.join(ROOT, ".claude", "skills")
     agents = os.path.join(ROOT, ".claude", "agents")
-    need_skills = ["prd-analyzer", "sheet-operator", "testcase-auto",
+    need_skills = ["prd-analyzer", "prd-digest", "sheet-operator", "testcase-auto",
                    "testcase-augment", "testcase-generator", "testcase-reviewer"]
-    need_agents = ["prd-analyst.md", "sheet-analyst.md",
+    need_agents = ["prd-analyst.md", "prd-digester.md", "sheet-analyst.md",
                    "testcase-writer.md", "testcase-reviewer.md",
                    "tc-augmenter.md"]
     miss = [s for s in need_skills if not os.path.isfile(os.path.join(skills, s, "SKILL.md"))]

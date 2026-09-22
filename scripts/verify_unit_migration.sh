@@ -10,10 +10,12 @@ cd "$(dirname "$0")/.." || exit 1
 
 SKILLS=(.claude/skills/testcase-auto/SKILL.md
         .claude/skills/prd-analyzer/SKILL.md
+        .claude/skills/prd-digest/SKILL.md
         .claude/skills/testcase-generator/SKILL.md
         .claude/skills/testcase-reviewer/SKILL.md
         .claude/skills/sheet-operator/SKILL.md)
 AGENTS=(.claude/agents/prd-analyst.md
+        .claude/agents/prd-digester.md
         .claude/agents/testcase-writer.md
         .claude/agents/testcase-reviewer.md
         .claude/agents/sheet-analyst.md)
@@ -27,20 +29,24 @@ AUGMENT=(.claude/skills/testcase-augment/SKILL.md
          .claude/skills/testcase-generator/references/permission-mode.md
          .claude/skills/testcase-reviewer/references/augment-mode.md)
 ORCH=(.claude/skills/testcase-auto/SKILL.md
-      .claude/skills/testcase-augment/SKILL.md)
+      .claude/skills/testcase-augment/SKILL.md
+      .claude/skills/prd-digest/SKILL.md)
 # _workspace 문자열이 한 번도 나오면 안 되는 파일들 (루트 정의는 ORCH 에만 둔다)
 NOWS=(.claude/agents/prd-analyst.md
       .claude/agents/testcase-writer.md
       .claude/agents/testcase-reviewer.md
       .claude/agents/sheet-analyst.md
       .claude/agents/tc-augmenter.md
+      .claude/agents/prd-digester.md
       .claude/skills/prd-analyzer/SKILL.md
       .claude/skills/prd-analyzer/references/image-input.md
       .claude/skills/prd-analyzer/references/change-mode.md
       .claude/skills/prd-analyzer/references/figma.md
+      .claude/skills/prd-analyzer/references/digest-mode.md
       .claude/skills/testcase-generator/SKILL.md
       .claude/skills/testcase-reviewer/SKILL.md
       .claude/skills/testcase-reviewer/references/augment-mode.md
+      .claude/skills/testcase-reviewer/references/digest-mode.md
       .claude/formats/common.md)
 CORE=("${SKILLS[@]}" "${AGENTS[@]}" "${FORMATS[@]}")
 CORE=("${CORE[@]}" "${AUGMENT[@]}")
@@ -87,6 +93,28 @@ present() { # $1=라벨 $2=ERE 패턴 $3..=파일
     printf 'ok    %s\n' "$label"
   fi
 }
+
+exists() { # $1=라벨 $2..=파일 — `absent` 계열에 넘기는 배열의 경로가 실재하는지 본다.
+           # `absent` 는 `grep ... 2>/dev/null` 이라 **없는 파일에 대해 아무것도 내지 않고
+           # `ok` 를 찍는다.** 경로 하나가 오타이거나 다른 배열에 잘못 들어가면 그 파일에
+           # 걸린 금지 검사가 통째로 사라지는데 전체는 PASS 로 보인다(Task 4 에서 실제로
+           # 그랬다). 여기 오는 배열은 전부 커밋된 하네스 파일이다 — 선택적으로 없을 수
+           # 있는 파일은 `absent` 로 검사할 수 없으므로 애초에 이 배열에 넣지 않는다.
+  local label="$1"; shift
+  local f missing=""
+  for f in "$@"; do
+    [ -e "$f" ] || missing="$missing $f"
+  done
+  if [ -n "$missing" ]; then
+    printf 'FAIL  %s — 파일 없음:%s\n' "$label" "$missing"
+    fail=1
+  else
+    printf 'ok    %s (%d개)\n' "$label" "$#"
+  fi
+}
+
+echo "── 가드 자체 점검 ─────────────────────────────────────────"
+exists "금지 검사 대상 파일 실재" "${CORE[@]}" "${DOCS[@]}" "${NOWS[@]}" "${ORCH[@]}"
 
 echo "── 금지: 챕터 처리 단위 잔존 ──────────────────────────────"
 absent "산출물 접미사 _ch{N}"        '_ch\{N\}'                "${CORE[@]}" "${DOCS[@]}"
@@ -274,17 +302,144 @@ present "augment 는 제품·버전 폴더 밖" '_workspace/augment' \
 # 주는 0-0 의 정의 행**(이 재편 전체의 단일 출처)을 지워도 8개 가드가 전부 통과한다.
 # 그래서 정의 행의 형태를 그대로 찾되 **두 변수를 한 패턴에 함께 요구한다** — `{WS}` 쪽만
 # 고정하면 같은 줄의 `{SHARED}` 정의만 지워도 통과하고, `{SHARED}` 는 60여 회 쓰인다.
-# ORCH 가 아니라 testcase-auto 단독인 이유: testcase-augment 는 원천이 시트라 공용 이미지
-# 트리가 없어 정의 행에 `{SHARED}` 가 **의도적으로** 없다. 그쪽 정의 행은 바로 위
+# ORCH 전체가 아닌 이유: testcase-augment 는 원천이 시트라 공용 이미지 트리가 없어 정의
+# 행에 `{SHARED}` 가 **의도적으로** 없다. 그쪽 정의 행은 바로 위
 # `present '_workspace/augment'` 가 이미 정확히 한 줄로 고정한다.
+# prd-digest 는 `{WS}`·`{SHARED}` 를 **둘 다** 정의하므로(같은 shared 트리를 testcase-auto 와
+# 공유하는 것이 그 배치의 목적이다) 이 가드가 덮는다 — 신설이 아니라 파일 목록 확장이다.
 present "작업 루트 변수 정의 행" '\{WS\}` = `_workspace/.*\{SHARED\}` = `_workspace/' \
-        .claude/skills/testcase-auto/SKILL.md
+        .claude/skills/testcase-auto/SKILL.md \
+        .claude/skills/prd-digest/SKILL.md
 absent "오케스트레이터의 산출물 경로 하드코딩" \
        '_workspace/[0-9]|_workspace/pdf_images|_workspace/red_regions' "${ORCH[@]}"
 # 패턴에서 단독 '남긴다' 를 뺀 이유 — 바로 아래 해설 단락이 `shared/` 와 '남기는' 을 함께
 # 갖고 있어, 그 한 낱말만 '남긴다' 로 고쳐도 0-5 의 규칙 행이 사라진 채 통과한다.
 present "재실행 시 shared 보존" 'shared/.{0,12}(제자리|이동하지)' \
         .claude/skills/testcase-auto/SKILL.md
+
+echo "── 기획서 분석 절차 (2026-09-21) ──────────────────────────"
+# 라벨은 `분류 5종` 을 말하는데 패턴은 `확인 필요` 한 낱말만 봤다 — **`미변경` 을 두 파일에서
+# 전부 지워도 `ok` 가 찍히고 검사 전체가 통과한다**(실측 확인). 이 저장소가 2026-09-15 에
+# 「권위 선언」·「분모」 가드에서 겪은 것과 같은 형태다: 라벨이 주장하는 범위보다 패턴이 좁으면
+# 규칙의 절반이 사라져도 초록으로 보인다.
+# 한 패턴에 합치지 않고 두 줄로 나눈 이유 — `present` 의 ERE 는 파일 단위 `grep -qE` 라
+# `확인 필요|미변경` 은 **OR** 가 되어 오히려 더 약해지고(한쪽만 남아도 통과), 두 낱말은
+# 분류 표의 **서로 다른 행**에 있어 한 줄 패턴(`작업 루트 변수 정의 행` 방식)으로 묶을 수도 없다.
+# 나눠 두면 어느 분류가 사라졌는지가 FAIL 메시지에 그대로 나온다.
+present "분류 5종에 확인 필요 포함" '확인 필요' \
+        .claude/skills/prd-analyzer/references/digest-mode.md \
+        .claude/agents/prd-digester.md
+present "분류 5종에 미변경 포함" '미변경' \
+        .claude/skills/prd-analyzer/references/digest-mode.md \
+        .claude/agents/prd-digester.md
+# 패턴을 절 제목에서 **규칙 행 자체**로 옮겼다 — 제목만 고정하면 **그 아래 13행을 전부
+# 지워도 `ok` 가 찍힌다**(음성 대조로 재현). 스펙이 묶으라고 한 것은 역방향 오판 규칙이지
+# 그 규칙을 소개하는 제목이 아니다. `present` 는 파일 단위 `grep -qE` 라 한 패턴으로 13행을
+# 모두 요구할 수 없으므로(알파로 이으면 **OR** 가 되어 오히려 약해진다) **가장 새로
+# 들어왔고 가장 쉽게 사라지는 `미변경` 대다수 규칙**을 닻으로 삼는다 — 그 행은 2026-09-21
+# 에 `미변경` 분류를 신설하며 들어왔고, 없으면 리뷰가 매 실행 "변경 검출이 부족하다"를
+# 올려 재작업 루프가 돈다. 사유 칸까지 요구하므로 행을 껍데기만 남겨도 FAIL 한다.
+present "리뷰 역방향 오판 금지" '^\| \*\*`미변경` 이 산출물의 대다수다.*\|.*변경 문서에서는 대다수 기능' \
+        .claude/skills/testcase-reviewer/references/digest-mode.md
+# 아래 셋은 오케스트레이터(`prd-digest` SKILL)가 혼자 지는 규칙이다 — 에이전트도 스크립트도
+# 이 판단을 대신할 수 없어, 선언이 사라지면 아무 데서도 드러나지 않는다.
+#
+# `IA 는 권위가 아니다` 패턴은 본문 다른 문장에 걸리기 쉬운 형태다(2026-09-15 「권위 선언」·
+# 「분모」 가드와 같은 함정). 그래서 낱말 하나가 아니라 **`IA 부재`/`IA 에 없다` 와
+# `신호`/`근거가 아니` 를 한 줄에서 함께** 요구한다 — 그 선언 문장만이 이 형태를 만족한다.
+# 음성 대조로 확인했다: 선언 한 줄을 지우면 FAIL 한다(본문의 `IA 에 없는 화면` 목록 서술은
+# `에 없다` 가 아니라 `에 없는` 이라 걸리지 않는다).
+present "IA 는 권위가 아니다"     'IA (부재|에 없다).*(신호|근거가 아니)' \
+        .claude/skills/prd-digest/SKILL.md
+present "두 MD 는 한 TSV 에서 렌더" '한 벌의 TSV|같은 TSV 에서' \
+        .claude/skills/prd-digest/SKILL.md
+# 패턴을 `TROMBONE.*(중단|미지원|추후)` 에서 **선언 문장 자체**로 좁혔다 — 그 형태는 0-2 의
+# enum 셀(`… / \`TROMBONE\`(중단)`)과 에러 표 행까지 셋이 만족해, **규칙을 서술한 두 줄을
+# 지우고 enum 셀만 남겨도 `ok` 가 찍힌다**(음성 대조로 재현). 이 저장소가 2026-09-15 에
+# 「권위 선언」·「분모」 가드에서 겪은 것과 같은 형태다. 이제 선언 한 줄이 이 패턴의 유일한
+# 적중이고, 그 줄을 지우면 나머지 두 줄이 남아 있어도 FAIL 한다.
+present "TROMBONE 미지원"          'TROMBONE.{0,3}을 고르면 진행하지 않' \
+        .claude/skills/prd-digest/SKILL.md
+
+# 트리거 문구 독점 가드 — **스킬 선택은 `CLAUDE.md` 분기 표가 아니라 스킬 `description`
+# 매칭으로 일어난다.** 분기 표는 모델이 이미 이 저장소의 규칙을 읽고 있을 때만 이기고,
+# `description` 은 그보다 먼저 읽힌다. 두 스킬이 같은 문구를 명령형으로 주장하면
+# `기획서 분석해줘` 가 도구 스킬(`prd-analyzer`)로 갈 수 있는데, 그 경로에는 Phase 0 도
+# 작업 디렉터리도 메뉴 IA 단계도 없어 **산출물 2개가 아예 만들어지지 않는다.**
+# `기획서 분석 결과` 는 입력 산출물을 가리키는 명사구이지 사용자가 타이핑하는 트리거가
+# 아니므로(`testcase-generator`) 지우고 나서 센다 — 안 그러면 이 가드가 영구 FAIL 이거나,
+# 그걸 피하려다 패턴이 느슨해져 진짜 중복을 놓친다.
+# frontmatter 의 `description` 필드 **전문**을 한 줄로 낸다. 첫 줄만 읽으면 YAML 접힌
+# 스칼라(`description: >` 뒤 들여쓴 여러 줄)로 쓴 주장이 통째로 새어 나간다.
+desc_field() { # $1=SKILL.md
+  awk '
+    NR == 1 && $0 == "---" { infm = 1; next }
+    infm && $0 == "---"    { exit }
+    !infm                  { exit }
+    /^description:/ { ind = 1; sub(/^description:[ \t]*/, ""); print; next }
+    ind && /^[A-Za-z_][A-Za-z0-9_-]*:/ { ind = 0 }
+    ind { print }
+  ' "$1" | tr '\n' ' '
+}
+
+trigger_owner() {
+  local f owner=".claude/skills/prd-digest/SKILL.md" n=0 hits=""
+  for f in .claude/skills/*/SKILL.md; do
+    [ -e "$f" ] || continue
+    if desc_field "$f" | sed 's/기획서 분석 결과//g' | grep -q '기획서 분석'; then
+      n=$((n + 1)); hits="${hits:+$hits }$f"
+    fi
+  done
+  # **개수가 아니라 소유자를 본다.** 개수만 보면 문구를 `prd-digest` 에서 떼어 다른 스킬에
+  # 옮겨 붙여도 1개라서 `ok` 가 찍히는데, 그것이 바로 이 가드가 막으려던 실패다
+  # (`기획서 분석해줘` 가 Phase 0 도 작업 디렉터리도 메뉴 IA 단계도 없는 도구 스킬로 간다).
+  # 옆의 `기획서 분석 트리거 분기` 가드도 `CLAUDE.md` 안의 `prd-digest` 만 보므로 함께 통과한다.
+  if [ "$hits" = "$owner" ]; then
+    printf 'ok    기획서 분석 트리거 문구 독점 (%s)\n' "$owner"
+  else
+    printf 'FAIL  기획서 분석 트리거 문구의 소유자는 %s 하나여야 한다 — 실제 주장 %d개: %s\n' \
+           "$owner" "$n" "${hits:-없음}"
+    fail=1
+  fi
+}
+trigger_owner
+
+# 트리거 충돌 가드 — `CLAUDE.md` 의 트리거 절이 `기획서 분석` 을 `testcase-auto` 로 보내고
+# 있었다(2026-09-21 이전). 그 상태에서는 이 절차가 **문서에만 있고 아무도 부르지 않는다.**
+# 분기 표에서 `prd-digest` 가 사라지면 같은 상태로 조용히 되돌아가므로 선언을 못 박는다.
+#
+# 패턴을 맨 `prd-digest` 에서 **분기 표의 행 자체**로 좁혔다 — 파일 전체를 grep 하면
+# **이 가드는 구조적으로 실패할 수 없다.** `prd-digest` 는 2026-09-21 변경 이력 행에도 있고
+# **이 저장소는 변경 이력 행을 지우지 않으므로**, 분기 표에서 `기획서 분석` 행을 통째로
+# 지워도 영원히 `ok` 가 찍힌다(음성 대조로 재현). 이 저장소가 「권위 선언」·「분모」·
+# `TROMBONE` enum 칸·트리거 소유자에서 겪은 것과 같은 계열이며, **자기가 존재하는 이유인
+# 실패를 통과시키는 가드는 없는 것보다 해롭다 — 탐색을 끝내 버리기 때문이다.**
+# 이제 `기획서 분석` 을 왼쪽 칸에 담고 오른쪽 칸이 정확히 `` `prd-digest` `` 인 표 행만
+# 이 패턴을 만족한다(실측: CLAUDE.md 안에서 적중 1줄 = 분기 표 행. 변경 이력 행은
+# 표 행이 아니므로 걸리지 않는다).
+present "기획서 분석 트리거 분기" '^\|.*기획서 분석.*\| *`prd-digest` *\|$' CLAUDE.md
+
+# `분류 5종` 선언 자체를 묶는다 — 위의 두 가드는 `확인 필요` 와 `미변경` 을 **낱말로만** 본다.
+# 그래서 다섯을 나열한 그 문장을 두 파일에서 통째로 지워도, 다른 문단에 낱말이 한 번씩만
+# 남아 있으면 둘 다 `ok` 가 찍힌다. 분류가 몇 종인지를 선언하는 곳이 사라지면
+# 에이전트는 자기가 아는 값을 쓰고 `verify_digest.py` 의 `CLASS_ENUM` 이 뒤늦게 잡는다.
+present "분류 5종 선언" '신규.{0,8}변경.{0,8}삭제.{0,8}확인 필요.{0,8}미변경' \
+        .claude/skills/prd-analyzer/references/digest-mode.md \
+        .claude/agents/prd-digester.md
+
+# 렌더러와 점검기는 같은 상수를 **각자 선언한다**(공용 모듈을 두지 않았다 — 스크립트 3개가
+# 서로를 import 하지 않는 것이 이 저장소의 관행이다). 한쪽만 고치면 **렌더러가 통과시킨
+# 행을 점검기가 위반으로 잡거나 그 반대**가 되고, 둘 다 자기 기준으로는 옳으므로
+# 어느 `--selftest` 도 울리지 않는다. 그래서 세 상수를 값까지 못 박아 대조한다.
+# 한 패턴으로 합치지 않는 이유는 위 「분류 5종」과 같다 — `present` 는 파일 단위
+# `grep -qE` 라 서로 다른 줄의 세 상수를 한 줄 패턴으로 묶을 수 없고, 알파(`|`)로 이으면
+# 셋 중 하나만 남아도 통과해 오히려 약해진다.
+present "공유 상수 CLASSES 일치" '^CLASSES = \("신규", "변경", "삭제", "확인 필요", "미변경"\)$' \
+        scripts/render_digest.py scripts/verify_digest.py
+present "공유 상수 GLOBAL_ID 일치" '^GLOBAL_ID = "문서 전역"$' \
+        scripts/render_digest.py scripts/verify_digest.py
+present "공유 상수 COLS 일치" '^COLS = 7$' \
+        scripts/render_digest.py scripts/verify_digest.py
 
 echo
 if [ "$fail" -eq 0 ]; then

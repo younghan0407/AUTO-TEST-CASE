@@ -6,6 +6,9 @@ pymupdf>=1.24          # PDF → PNG 변환 (pdf_to_images.py, detect_red_region
 pillow>=10.0           # 이미지 판독·크롭 (detect_red_regions.py, check_image_quality.py)
 numpy>=1.24            # 빨강 픽셀 검출·선명도 지표 계산
 
+# 메뉴 IA 엑셀 읽기
+openpyxl>=3.0          # 메뉴 IA 엑셀 파일 읽기 (parse_menu_ia.py)
+
 # Google Sheets 연동
 google-auth>=2.28              # 서비스 계정 인증 (sheets_api.py)
 google-auth-httplib2>=0.2

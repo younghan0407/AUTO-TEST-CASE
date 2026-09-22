@@ -1,0 +1,1 @@
+../.claude/skills/prd-digest/scripts/render_digest.py
