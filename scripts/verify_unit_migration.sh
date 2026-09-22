@@ -361,6 +361,31 @@ present "두 MD 는 한 TSV 에서 렌더" '한 벌의 TSV|같은 TSV 에서' \
 present "TROMBONE 미지원"          'TROMBONE.{0,3}을 고르면 진행하지 않' \
         .claude/skills/prd-digest/SKILL.md
 
+# ── BootFactory 지원 (2026-09-22) ──
+# 세 가드 모두 **선언 문장 자체**를 겨눈다. 바로 위 TROMBONE 가드에서 얻은 교훈이다 —
+# 처음엔 `TROMBONE.*(중단|미지원)` 로 썼는데 enum 셀과 에러 표 행까지 셋이 만족해
+# **규칙을 서술한 두 줄을 지우고 enum 셀만 남겨도 `ok`** 가 찍혔다.
+#
+# ① BootFactory 가 enum 에서 사라지면 `prd-digest` 는 이 값에 대해 **진행도 중단도 아닌
+#    미정의 상태**로 돌아간다. TROMBONE 은 명시적 중단 행이 있는데 BootFactory 만 없던 것이
+#    이 작업 직전의 상태였고, 그때 사용자가 그 값을 고르면 오케스트레이터가 즉흥 판단했다.
+present "BootFactory 진행 선언" '^\| `BootFactory` \| 진행' \
+        .claude/skills/prd-digest/SKILL.md
+# ② 이 한 줄이 BootFactory 지원의 **전부를 지탱한다.** BF 는 `v{N}종류` 붙임형이 0건이고
+#    `종류 - 날짜` 형이 133건인데, 앞의 0건을 「종류 원문 없음」으로 읽으면 D-3 이 전 기능을
+#    `확인 필요` 로 보내 `04_신규변경.md` 가 통째로 무의미해진다. **표의 두 행만으로는
+#    만족되지 않게** 금지 문장에 고정했다 — 표는 남기고 이 문장만 지우는 회귀가 실제 위험이다.
+present "종류 원문 두 형태 병기" '종류 원문 없음.{0,10}으로 읽지 마라' \
+        .claude/skills/prd-analyzer/references/digest-mode.md
+# ③ 구분자만 다른 두 화면 ID 를 하네스가 임의로 합치면 **기획서에 없는 동일성을 단정**하는
+#    것이고, 합친 결과는 `SCREEN_MISSING` 으로도 드러나지 않아 아무도 감지하지 못한다.
+#    반대로 그냥 두면 한 화면이 둘로 갈린다. 유일한 출구가 1-F 게이트의 사용자 확정이므로
+#    「정규화하지 않는다 + 게이트에 올린다」 선언이 사라지면 둘 중 하나로 조용히 틀어진다.
+present "표기 흔들림은 정규화 금지" '정규화하지 않는다' \
+        .claude/skills/prd-digest/SKILL.md
+present "표기 흔들림 후보를 게이트에 올린다" '표기 흔들림 후보' \
+        .claude/skills/prd-digest/SKILL.md
+
 # 트리거 문구 독점 가드 — **스킬 선택은 `CLAUDE.md` 분기 표가 아니라 스킬 `description`
 # 매칭으로 일어난다.** 분기 표는 모델이 이미 이 저장소의 규칙을 읽고 있을 때만 이기고,
 # `description` 은 그보다 먼저 읽힌다. 두 스킬이 같은 문구를 명령형으로 주장하면
