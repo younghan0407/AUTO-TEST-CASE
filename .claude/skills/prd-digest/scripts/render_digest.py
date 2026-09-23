@@ -68,6 +68,20 @@ def read_menu_tree(ws: str):
         return json.load(f)
 
 
+def _extract_id_cell(cell: str) -> str:
+    """표 셀에서 화면 ID 원문만 뽑는다.
+
+    ⚠️ 사양 표기는 화면 ID 를 백틱으로 감싼다(`` `CICD-00_00_01` ``). 벗기지 않으면 TSV 의
+       화면ID 열(백틱 없는 원문)과 안 맞아 **제목 조회가 전부 실패**하고 `03_기능_전체.md` 에
+       그 화면이 `(이름 없음)` 으로 나온다(실측: 백틱 포함 인덱스에서 IA 없는 화면 전부 재현).
+       괄호 구별 표기가 백틱 뒤에 병기될 수 있으므로 **첫 백틱 쌍 안의 내용만** 취한다.
+       `verify_digest.py` 의 같은 이름 함수와 동일하게 유지한다 — 갈라지면 두 스크립트가
+       다른 화면 집합을 본다.
+    """
+    m = re.match(r"`([^`]+)`", cell)
+    return m.group(1) if m else cell
+
+
 def read_index_titles(ws: str) -> dict:
     """`00_screen_index.md` 의 화면 ID → Page Title. 헤더에서 열을 찾는다."""
     p = os.path.join(ws, "00_screen_index.md")
@@ -110,7 +124,7 @@ def read_index_titles(ws: str) -> dict:
             continue
         cells = [c.strip() for c in line.split("|")[1:-1]]
         if len(cells) > max(id_col, title_col):
-            sid = cells[id_col]
+            sid = _extract_id_cell(cells[id_col])
             title = cells[title_col]
             if sid and title:
                 out[sid] = title
@@ -133,10 +147,16 @@ def build_lookup(tree, titles: dict):
         return "" if sid in by_id else "(경로 없음)"
 
     def name_of(sid: str) -> str:
-        if sid in by_id and by_id[sid][1]:
-            return by_id[sid][1]
+        # 화면명은 **기획서의 Page Title 이 1순위**다. IA 이름은 폴백이다.
+        # IA 는 뼈대이지 권위가 아니다(SKILL 1-C) — IA 가 기획서보다 낡으면
+        # 개명이 렌더 제목에서 되돌아간다. 실측: BF v3 `BOOT-01_01_03` 의
+        # 기획서 Page Title 은 `진입 설정 팝업` 인데 IA 는 `시작 화면 설정 팝업`
+        # 이고, 그 개명 자체가 이 문서가 보고하는 변경분이었다.
+        # 경로(`path_of`)는 반대다 — 메뉴 경로는 IA 가 권위다.
         if titles.get(sid):
             return titles[sid]
+        if sid in by_id and by_id[sid][1]:
+            return by_id[sid][1]
         return "(이름 없음)"
 
     return path_of, name_of
@@ -299,8 +319,8 @@ def _selftest() -> int:
         chk("S3 IA 에 없으면 TSV 폴백", path_of("VIOE-99_99_99", "임시 > 경로") == "임시 > 경로")
         chk("S3 둘 다 없으면 (경로 없음)", path_of("VIOE-88_88_88", "") == "(경로 없음)")
         chk("S3 IA 에 있고 경로가 비면 공통 정의(빈 문자열)", path_of("VIOE-00_00_00", "") == "")
-        chk("S4 화면명은 IA 가 1순위", name_of("VIOE-04_06_01") == "외부 알람 목록")
-        chk("S4 IA 에 없으면 인덱스 Page Title", name_of("VIOE-99_99_99") == "인덱스에서 온 이름")
+        chk("S4 화면명은 인덱스 Page Title 이 1순위", name_of("VIOE-99_99_99") == "인덱스에서 온 이름")
+        chk("S4 Page Title 이 없으면 IA 이름으로 폴백", name_of("VIOE-04_06_01") == "외부 알람 목록")
         chk("S4 둘 다 없으면 (이름 없음)", name_of("VIOE-88_88_88") == "(이름 없음)")
 
         hdr = {"product": "VIOLA K8s", "doc": "test.pdf"}
@@ -484,6 +504,23 @@ def _selftest() -> int:
     finally:
         import shutil
         shutil.rmtree(ws8)
+
+    # ⚠️ S14 는 화면 ID 를 백틱 없이 평문으로 썼다. 실사양(`00_screen_index.md` 의 실제
+    # 예시 표기)은 화면 ID 를 백틱으로 감싸므로(`` `VIOE-01` ``), 백틱을 벗기지 않는 회귀가
+    # 나도 S14 는 못 잡는다 — 2026-09-22 실행에서 실제로 이 이유로 IA 없는 화면 전부가
+    # `03_기능_전체.md` 에 `(이름 없음)` 으로 나왔다. 음성 대조: 추출 로직을 빼면 아래가
+    # FAIL 로 재현되는 것을 확인했다.
+    ws9 = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(ws9, "00_screen_index.md"), "w", encoding="utf-8") as f:
+            f.write("| 순번 | 화면 ID(원문) | Page Title |\n|---|---|---|\n")
+            f.write("| 01 | `VIOE-01` | 화면명 레이블 |\n")
+        titles9 = read_index_titles(ws9)
+        chk("S19 인덱스 화면ID가 백틱으로 감싸여 있어도 제목이 조회된다",
+            titles9.get("VIOE-01") == "화면명 레이블", titles9)
+    finally:
+        import shutil
+        shutil.rmtree(ws9)
 
     print()
     if fails:

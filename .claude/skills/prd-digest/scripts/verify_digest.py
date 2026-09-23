@@ -48,6 +48,20 @@ def _read_tsv(ws: str) -> list:
     return rows
 
 
+def _extract_id_cell(cell: str) -> str:
+    """표 셀에서 화면 ID 원문만 뽑는다.
+
+    ⚠️ 사양 표기는 화면 ID 를 백틱으로 감싼다(`` `CICD-00_00_01` ``). 백틱을 벗기지 않으면
+       TSV 의 화면ID 열(백틱 없는 원문)과 절대 일치하지 않아 **정상 산출물도 전 화면이
+       `SCREEN_MISSING` Critical 로 잡힌다**(실측: 백틱 포함 인덱스에서 69/69 오탐).
+       괄호 구별 표기(중복 오류 화면에 붙이는 `` `CICD-02_01_01` (원소유, [p050]) `` 같은 것)가
+       백틱 뒤에 병기될 수 있으므로 **첫 백틱 쌍 안의 내용만** 취한다 — 그래야 TSV 원문과 맞는다.
+       백틱이 없는 셀(레거시 표기)은 그대로 쓴다.
+    """
+    m = re.match(r"`([^`]+)`", cell)
+    return m.group(1) if m else cell
+
+
 def _index_screens(ws: str) -> set:
     """`00_screen_index.md` 의 화면 ID 집합. 헤더에서 열을 찾고 표 끝에서 멈춘다.
 
@@ -94,7 +108,7 @@ def _index_screens(ws: str) -> set:
             continue
         cells = [c.strip() for c in line.split("|")[1:-1]]
         if len(cells) > id_col and cells[id_col]:
-            out.add(cells[id_col])
+            out.add(_extract_id_cell(cells[id_col]))
     return out
 
 
@@ -405,6 +419,21 @@ def _selftest() -> int:
                    ["VIOE-92", "바뀜", "설명", "변경", "[스티커 p001]", "p001", ""]],
               c_ids=[])
         chk_hit("S32 미변경·변경을 함께 가진 화면이 04 에 없으면 MD_MISSING", ws, "MD_MISSING")
+
+    # ⚠️ 실사양(`00_screen_index.md` 의 실제 예시 표기)은 화면 ID 를 백틱으로 감싼다.
+    # 위 S1~S32 는 전부 `build()` 의 `index_ids` 를 백틱 없이 평문으로 썼으므로, 백틱을
+    # 벗기지 않는 회귀가 나도 여기서는 안 잡힌다 — 이 문서 2026-09-22 실행에서 실제로
+    # 69/69 화면이 이 이유로 오탐 Critical 이 났다. 음성 대조: 백틱 제거 로직을 빼면
+    # 아래 두 테스트가 FAIL 로 재현되는 것을 확인했다.
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [ok_row], index_ids=["`VIOE-01`"])
+        chk("S33 인덱스 화면ID가 백틱으로 감싸여 있어도 TSV 원문과 매칭된다",
+            codes(ws) == set(), codes(ws))
+
+    with tempfile.TemporaryDirectory() as ws:
+        build(ws, [ok_row], index_ids=["`VIOE-01` (원소유, [p050])"])
+        chk("S34 백틱 뒤 괄호 구별 표기가 있어도 백틱 안의 원문만 취해 매칭된다",
+            codes(ws) == set(), codes(ws))
 
     print()
     print("  심어 둔 위반 %d종: %s" % (len(injected), ", ".join(sorted(injected))))
