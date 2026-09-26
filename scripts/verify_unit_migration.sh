@@ -166,6 +166,16 @@ present "정책 예외 태그"         '\[정책 예외\]'  .claude/skills/testc
                                                .claude/skills/testcase-generator/SKILL.md \
                                                .claude/skills/testcase-reviewer/SKILL.md
 
+# 근거 경로 태그 2종 등재 (2026-09-26 · BF v3 589행 실측).
+# ⚠️ 낱말로 세면 안 된다 — `취소선` 은 common.md 에 수십 번 나오고 `Document History` 도
+#    다른 문맥에 있다. 표 행과 선언 문장을 **따로** 겨눠야 한 쪽만 지우는 회귀가 잡힌다.
+# 표 행에 고정한다 — 같은 문자열이 아래 인용문에도 있어, 행만 지워도 통과하는
+# 약한 패턴이었다(음성 대조에서 드러났다). `^\|` 로 표 행임을 요구한다.
+present "[취소선] 태그 표 행"     '^\| \*\*`\[취소선\]`\*\* \|' .claude/formats/common.md
+present "[Document History] 태그 표 행" '^\| \*\*`\[Document History p\{NNN\}\]`\*\* \|' .claude/formats/common.md
+present "Document History = 다섯 번째 경로 선언" '다섯 번째 경로' .claude/formats/common.md
+present "Document History = 문서 축 근거 선언"   '문서 축 근거'   .claude/formats/common.md
+
 echo "── 회귀 가드: 토큰 구조 개선의 안전장치 (2026-09-08) ─────"
 # 아래는 "비용을 줄이려다 품질 장치를 잃지 않았는가" 를 지킨다.
 present "합본 미독 규약"        '합본을 .Read. 로 열지 않는다|행 수·크기' \
