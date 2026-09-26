@@ -401,9 +401,16 @@ def verify(header: list[str], rows: list[list[str]], common: dict, profile: dict
             flag("EXP", rn, f"`{last[-1][-14:]}`")
 
         # 14. 본문 열 문체 — 프로파일 표기와 반대인 기호
+        #     ⚠️ `[실제 결과]` 는 예외다 — common.md 가 「PASS/FAIL 판정 대신 실측 상태를
+        #        [실제 결과]에 기재」 문구를 기획 미정의 항목의 **표준 표현**으로 직접 지정한다.
+        #        이것은 UI 라벨을 잘못 대괄호로 쓴 것이 아니라 열 이름(`실제 결과`)을 가리키는
+        #        지시문이라 태그와 성격이 다르다. 벗기지 않으면 이 문구를 쓴 행마다 매번
+        #        STYLE_BRACKET 오탐이 나고(실측: 여러 배치에서 반복), 오탐을 내는 검사기는
+        #        무시당해 검사 자체가 무력해진다.
         for i in body_idx:
             v = col(row, i)
-            if profile["label_style"] == "backtick" and re.search(r"\[[^\]]+\]", _outside_ticks(v)):
+            v_checked = re.sub(r"\[실제\s*결과\]", "", _outside_ticks(v))
+            if profile["label_style"] == "backtick" and re.search(r"\[[^\]]+\]", v_checked):
                 flag("STYLE_BRACKET", rn, common["columns"][i]["name"])
             if profile["label_style"] == "bracket" and "`" in v:
                 flag("STYLE_TICK", rn, common["columns"][i]["name"])
@@ -643,6 +650,19 @@ def selftest(fdir: str) -> int:
                     common, profile, 2).findings
     if quoted:
         fails.append(f"  ✗ 백틱 인용 오탐: {[f['code'] for f in quoted]}")
+
+    # ⚠️ `[실제 결과]` 는 common.md 가 지정한 기획 미정의 항목의 표준 표현이라
+    #    STYLE_BRACKET 오탐이 나면 안 된다 (실측: 2026-09-23 여러 배치에서 반복 오탐).
+    #    같은 셀에 다른 진짜 대괄호가 섞이면 여전히 잡혀야 한다(면제가 전체를 죽이면 안 됨).
+    undefined_phrase = verify(
+        H, [mk(**{"예상 결과": "ㄴ 기획 미정의 항목 — PASS/FAIL 판정 대신 실측 상태를 [실제 결과]에 기재"})],
+        common, profile, 2).findings
+    if undefined_phrase:
+        fails.append(f"  ✗ [실제 결과] 표준 문구 오탐: {[f['code'] for f in undefined_phrase]}")
+    mixed = verify(H, [mk(**{"예상 결과": "[실제 결과]에 기재 / [UI] 라벨도 표출"})],
+                    common, profile, 2).findings
+    if "STYLE_BRACKET" not in {f["code"] for f in mixed}:
+        fails.append("  ✗ [실제 결과] 면제가 다른 대괄호까지 죽임 — 진짜 위반을 놓친다")
 
     # TC ID 자리수 소진은 위반이 아니다 (2026-09-11 실측: VIOLA 4자리 1,125행).
     # 고정폭으로 검사하면 999를 넘긴 정상 행이 전부 TCFMT 로 잡혀 검사기가 무시당한다.
